@@ -1,0 +1,462 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      // Hardcoded admin for bootstrapping or check against admins collection
+      return isSignedIn() && (
+        request.auth.token.email == 'eiweh123@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- ENTITY VALIDATORS ---
+
+    function isValidUser(data) {
+      return data.uid == request.auth.uid &&
+             (data.role is string && data.role.size() <= 50) &&
+             (!('is_premium' in data) || data.is_premium is bool) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+             (!('daily_requests' in data) || data.daily_requests is int) &&
+             (!('scholarCredits' in data) || data.scholarCredits is int) &&
+             (!('meritUsageCount' in data) || data.meritUsageCount is int) &&
+             (!('lifetime_calculations' in data) || data.lifetime_calculations is int) &&
+             (!('daily_last_reset' in data) || (data.daily_last_reset is string && data.daily_last_reset.size() <= 50)) &&
+             (!('daily_chats' in data) || data.daily_chats is int) &&
+             (!('daily_chat_last_reset' in data) || (data.daily_chat_last_reset is string && data.daily_chat_last_reset.size() <= 50)) &&
+             (!('last_active' in data) || (data.last_active is string && data.last_active.size() <= 50)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updated_at' in data) || (data.updated_at is string && data.updated_at.size() <= 50)) &&
+             (!('premium_activated_at' in data) || (data.premium_activated_at is string && data.premium_activated_at.size() <= 50)) &&
+             (!('targetCourse' in data) || (data.targetCourse is string && data.targetCourse.size() <= 200)) &&
+             (!('university' in data) || (data.university is string && data.university.size() <= 200)) &&
+             (!('targetUTMEScore' in data) || data.targetUTMEScore is number) &&
+             (!('jambScore' in data) || data.jambScore is number) &&
+             (!('utmeSubjects' in data) || (data.utmeSubjects is list && data.utmeSubjects.size() <= 10)) &&
+             (!('olevelGrades' in data) || (data.olevelGrades is list && data.olevelGrades.size() <= 15)) &&
+             (!('journey_progress' in data) || (data.journey_progress is list && data.journey_progress.size() <= 20)) &&
+             (!('academicProfile' in data) || data.academicProfile is map) &&
+             (!('admissionStatus' in data) || data.admissionStatus is map) &&
+             (!('referral_code' in data) || (data.referral_code is string && data.referral_code.size() <= 50)) &&
+             (!('referral_count' in data) || data.referral_count is int) &&
+             (!('registration_reward_granted' in data) || data.registration_reward_granted is bool);
+    }
+
+    function isValidNews(data) {
+      return data.title is string && data.title.size() <= 500 && data.title.size() > 0 &&
+             (!('slug' in data) || (data.slug is string && data.slug.size() <= 500)) &&
+             (!('status' in data) || data.status in ['published', 'draft', 'archived', 'pending']) &&
+             (!('publicationStatus' in data) || data.publicationStatus in ['published', 'draft', 'archived', 'pending']) &&
+             (!('source' in data) || (data.source is string && data.source.size() <= 2000)) &&
+             (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() <= 2000)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000)) &&
+             (!('featuredImageUrl' in data) || (data.featuredImageUrl is string && data.featuredImageUrl.size() <= 2000)) &&
+             (!('author' in data) || (data.author is string && data.author.size() <= 200)) &&
+             (!('authorName' in data) || (data.authorName is string && data.authorName.size() <= 200)) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+             (!('content' in data) || (data.content is string && data.content.size() <= 100000)) &&
+             (!('fullContent' in data) || (data.fullContent is string && data.fullContent.size() <= 100000)) &&
+             (!('summary' in data) || (data.summary is string && data.summary.size() <= 2000)) &&
+             (!('excerpt' in data) || (data.excerpt is string && data.excerpt.size() <= 2000)) &&
+             (!('lastVerifiedDate' in data) || (data.lastVerifiedDate is string && data.lastVerifiedDate.size() <= 50)) &&
+             (!('lastVerified' in data) || (data.lastVerified is string && data.lastVerified.size() <= 50)) &&
+             (!('createdAt' in data) || data.createdAt is string || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp) &&
+             (!('created_at' in data) || data.created_at is string || data.created_at is timestamp) &&
+             (!('updated_at' in data) || data.updated_at is string || data.updated_at is timestamp);
+    }
+
+    function isValidComment(data) {
+      return data.newsId is string && isValidId(data.newsId) &&
+             data.userId == request.auth.uid &&
+             data.content is string && data.content.size() <= 2000 &&
+             data.content.size() > 0;
+    }
+
+    function isValidSchoolUgc(data) {
+      return data.schoolSlug is string && data.schoolSlug.size() <= 100 &&
+             data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.content is string && data.content.size() <= 2000 && data.content.size() > 0 &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+             (!('rating' in data) || (data.rating is int && data.rating >= 1 && data.rating <= 5)) &&
+             (!('likes' in data) || (data.likes is int && data.likes >= 0)) &&
+             (!('likedBy' in data) || (data.likedBy is list && data.likedBy.size() <= 500));
+    }
+
+    function isValidAd(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 1000 &&
+             data.status in ['pending', 'active', 'expired'];
+    }
+
+    function isValidFeedback(data) {
+      return data.type in ['bug', 'feature', 'correction', 'general'] &&
+             data.content is string && data.content.size() <= 10000;
+    }
+
+    function isValidTestimonial(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.content is string && data.content.size() <= 2000 &&
+             data.rating is int && data.rating >= 1 && data.rating <= 5;
+    }
+
+    function isValidMasterCourse(data) {
+      return data.courseName is string && data.courseName.size() <= 200 &&
+             (!('utmeSubjects' in data) || (data.utmeSubjects is list && data.utmeSubjects.size() <= 10)) &&
+             (!('olevelRequirements' in data) || (data.olevelRequirements is list && data.olevelRequirements.size() <= 15)) &&
+             (!('directEntryRequirements' in data) || (data.directEntryRequirements is string && data.directEntryRequirements.size() <= 5000)) &&
+             (!('faculty' in data) || (data.faculty is string && data.faculty.size() <= 200)) &&
+             (!('keywords' in data) || (data.keywords is list)) &&
+             (!('version' in data) || (data.version is number));
+    }
+
+    function isValidAdmissionInstitution(data) {
+      return data.name is string && data.name.size() <= 300 &&
+             data.type in ["University", "Polytechnic", "College of Education", "Innovation Enterprise Institution"] &&
+             data.category in ["Federal", "State", "Private"] &&
+             (!('state' in data) || (data.state is string && data.state.size() <= 100)) &&
+             (!('courses' in data) || (data.courses is list && data.courses.size() <= 500)) &&
+             (!('keywords' in data) || (data.keywords is list)) &&
+             (!('version' in data) || (data.version is number));
+    }
+
+    function isValidAdmissionRequirementOverride(data) {
+      return data.institutionId is string && isValidId(data.institutionId) &&
+             data.courseId is string && isValidId(data.courseId) &&
+             data.type in ["utme", "olevel", "de"] &&
+             data.requirementText is string && data.requirementText.size() <= 5000;
+    }
+
+    function isValidAdmissionArticle(data) {
+      return data.id is string &&
+             data.title is string && data.title.size() <= 300 &&
+             data.category is string &&
+             data.summary is string &&
+             data.content is string &&
+             (!('keywords' in data) || (data.keywords is list)) &&
+             (!('version' in data) || (data.version is number));
+    }
+
+    // --- COLLECTIONS ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().keys().hasAll(['uid']);
+      
+      allow update: if (isOwner(userId) && isValidUser(incoming())) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /profile/data {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /chatHistory/data {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /activities/{activityId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /predictions/{predictionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /search_history/{historyId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /payments/{paymentId} {
+      allow create: if isSignedIn() && incoming().uid == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && existing().uid == request.auth.uid);
+    }
+
+    match /news/{newsId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidNews(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /news_articles/{articleId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidNews(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isEmailVerified() && isValidComment(incoming());
+      allow update: if (isAdmin() || (isOwner(existing().userId) && incoming().userId == existing().userId)) &&
+                       isValidComment(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['content']);
+      allow delete: if isAdmin() || isOwner(existing().userId);
+    }
+
+    match /school_ugc/{ugcId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidSchoolUgc(incoming());
+      allow update: if (isAdmin() || isSignedIn()) &&
+                       isValidSchoolUgc(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['content', 'rating', 'category', 'likes', 'likedBy']);
+      allow delete: if isAdmin() || isOwner(existing().userId);
+    }
+
+    match /billboard/{adId} {
+      allow read: if existing().status == 'active' || isAdmin() || isOwner(existing().userId);
+      allow create: if isEmailVerified() && isValidAd(incoming()) && 
+                      incoming().status == 'pending' &&
+                      incoming().userId == request.auth.uid;
+      allow update: if isAdmin() || (isOwner(existing().userId) && 
+                      incoming().status == 'pending' &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'image', 'link']));
+      allow delete: if isAdmin() || isOwner(existing().userId);
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if isValidFeedback(incoming());
+      allow read: if isAdmin();
+    }
+
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /chats/{chatId} {
+      allow create: if isSignedIn() && incoming().uid == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && existing().uid == request.auth.uid);
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /subscribers/{email} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update: if isAdmin();
+    }
+
+    match /institutional_logic/{slug} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /premium_subscriptions/{subId} {
+      allow read: if isAdmin();
+      allow create: if true; // Verification happens on server or via Admin manually
+    }
+
+    match /user_activities/{activityId} {
+      allow create: if true;
+      allow read: if true;
+    }
+
+    match /cgpa_history/{historyId} {
+      allow read, write: if true;
+    }
+
+    match /broadcasts/{broadcastId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /mail/{mailId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin(); // Only admins or specific triggers should create mail queue
+    }
+
+    match /knowledge_fragments/{fragmentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /site_analytics/{docId} {
+      allow read: if true;
+      allow write: if true; // Tracking traffic requires any visitor to update stats
+    }
+
+    match /calculation_stats/{date} {
+      allow read: if true;
+      allow write: if true; // Tracking traffic requires any visitor to update stats
+    }
+
+    match /cached_university_courses/{institutionId} {
+      allow read: if true;
+      allow write: if true; // Caching course lists can be done by visitors
+    }
+
+    match /cached_course_cutoff_info/{infoId} {
+      allow read: if true;
+      allow write: if true; // Caching cutoff info can be done by visitors
+    }
+
+    match /cutoff_overrides/{overrideId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /master_courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidMasterCourse(incoming());
+    }
+
+    match /admission_institutions/{institutionId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidAdmissionInstitution(incoming());
+    }
+
+    match /admission_requirement_overrides/{overrideId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidAdmissionRequirementOverride(incoming());
+    }
+    match /master_courses_history/{historyId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /admission_institutions_history/{historyId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /admission_articles/{articleId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidAdmissionArticle(incoming());
+    }
+
+    match /admission_articles_history/{historyId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /predictions/{predictionId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if isAdmin();
+    }
+
+    match /admission_outcomes/{outcomeId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if isAdmin();
+    }
+
+    match /post_utme_trackers/{trackerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /unilag_programmes/{progId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /syllabus_topics/{topicId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /discussions/{threadId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
+
+      match /replies/{replyId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if true;
+        allow delete: if true;
+      }
+    }
+
+    match /pdf_store/{pdfId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
+    }
+
+    match /past_questions/{questionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /exam_sessions/{sessionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /cbt_history/{historyId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /aloc_questions_vault/{questionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /ad_campaigns/{campaignId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
+    }
+
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
+    }
+
+    match /platform_settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

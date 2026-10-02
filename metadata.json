@@ -1,0 +1,11 @@
+{
+  "name": "CampusAI.ng - Academic & Admission Intelligence Platform",
+  "description": "Nigeria's comprehensive higher education platform: JAMB CBT exam simulator, verified cutoff marks, aggregate calculator, institutional portals, syllabus explorer, and CGPA studio.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,888 @@
+import * as path from 'path';
+import { MOCK_NEWS } from '../src/constants.js';
+
+function formatDate(val: any): string {
+  if (!val) return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  if (typeof val === 'string') return val.trim();
+  let ms = 0;
+  if (typeof val.toMillis === 'function') ms = val.toMillis();
+  else if (typeof val.toDate === 'function') ms = val.toDate().getTime();
+  else if (typeof val === 'object') {
+    if ('seconds' in val) ms = val.seconds * 1000;
+    else if ('_seconds' in val) ms = val._seconds * 1000;
+  } else if (typeof val === 'number') ms = val;
+
+  if (ms > 0) {
+    return new Date(ms).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  return String(val);
+}
+
+function formatIsoDate(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') {
+    const parsed = Date.parse(val);
+    if (!isNaN(parsed)) return new Date(parsed).toISOString();
+  }
+  let ms = 0;
+  if (typeof val.toMillis === 'function') ms = val.toMillis();
+  else if (typeof val.toDate === 'function') ms = val.toDate().getTime();
+  else if (typeof val === 'object') {
+    if ('seconds' in val) ms = val.seconds * 1000;
+    else if ('_seconds' in val) ms = val._seconds * 1000;
+  } else if (typeof val === 'number') ms = val;
+
+  if (ms > 0) return new Date(ms).toISOString();
+  return new Date().toISOString();
+}
+
+function renderMarkdownToHtml(markdown: string): string {
+  if (!markdown) return '';
+  
+  // Normalize line endings
+  let text = markdown.replace(/\r\n/g, '\n');
+
+  // Convert markdown headers
+  text = text.replace(/^### (.*$)/gim, '<h3 style="font-size: 1.25rem; font-weight: 800; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #0f172a;">$1</h3>');
+  text = text.replace(/^## (.*$)/gim, '<h2 style="font-size: 1.5rem; font-weight: 800; margin-top: 2rem; margin-bottom: 1rem; color: #0f172a;">$1</h2>');
+  text = text.replace(/^# (.*$)/gim, '<h1 style="font-size: 1.875rem; font-weight: 900; margin-top: 2rem; margin-bottom: 1rem; color: #0f172a;">$1</h1>');
+
+  // Convert bold and italics
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Convert links
+  text = text.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color: #2563eb; text-decoration: underline;" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  // Convert unordered lists
+  text = text.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li style="margin-bottom: 0.5rem; line-height: 1.6;">$1</li>');
+  text = text.replace(/(<li style="margin-bottom: 0.5rem; line-height: 1.6;">.*<\/li>\n?)+/g, '<ul style="margin-top: 1rem; margin-bottom: 1rem; padding-left: 1.5rem; list-style-type: disc;">$&</ul>');
+
+  // Paragraphs
+  const blocks = text.split(/\n\s*\n/);
+  const htmlBlocks = blocks.map(block => {
+    const trimmed = block.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<li')) {
+      return trimmed;
+    }
+    return `<p style="margin-bottom: 1.25rem; line-height: 1.8; font-size: 1.125rem; color: #334155;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
+  });
+
+  return htmlBlocks.filter(Boolean).join('\n');
+}
+
+// High-performance SEO injection cache to prevent blocking initial HTML server responses
+const seoCache = new Map<string, { html: string; timestamp: number }>();
+const SEO_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+
+export function clearSeoCache(slugOrPath?: string) {
+  if (slugOrPath) {
+    const raw = slugOrPath.trim();
+    const clean = raw.startsWith('/') ? raw : `/news/${raw}`;
+    seoCache.delete(clean);
+    seoCache.delete(clean.replace(/\/+$/, ''));
+    seoCache.delete('/news');
+    seoCache.delete('/');
+  } else {
+    seoCache.clear();
+  }
+}
+
+// Fast helper to run promises with a strict maximum timeout
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise.catch((err) => {
+      console.error("[SEO Injection Error]", err);
+      return fallback;
+    }),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
+  ]);
+}
+
+function formatSeoDescription(text: string, fallbackTopic?: string): string {
+  let clean = (text || "").replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  if (!clean || clean.length < 90) {
+    clean = `${clean ? clean + '. ' : ''}Get verified ${fallbackTopic || 'admission'} updates, cutoff marks, screening alerts, and preparation intelligence on CampusAI Nigeria.`;
+  }
+  if (clean.length > 158) {
+    const cut = clean.substring(0, 155);
+    const lastSpace = cut.lastIndexOf(' ');
+    clean = (lastSpace > 70 ? cut.substring(0, lastSpace) : cut) + '...';
+  }
+  return clean;
+}
+
+export async function injectSEO(html: string, reqPath: string, adminDb: any, dbInstance?: any): Promise<string> {
+  const rawPath = reqPath ? reqPath.split('?')[0] : '/';
+  const cleanPath = rawPath === '/' ? '' : rawPath.replace(/\/+$/, '');
+  const cacheKey = cleanPath || '/';
+
+  const cached = seoCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < SEO_CACHE_TTL_MS)) {
+    return cached.html;
+  }
+
+  const resultPromise = (async () => {
+    return await generateInjectedSEO(html, reqPath, adminDb, dbInstance);
+  })();
+
+  // Race DB queries against 3500ms timeout so crawlers have sufficient time on cold starts
+  const result = await withTimeout(resultPromise, 3500, generateFastSEOFallback(html, reqPath));
+  seoCache.set(cacheKey, { html: result, timestamp: Date.now() });
+  return result;
+}
+
+export function generateFastSEOFallback(html: string, reqPath: string): string {
+  const siteDomain = "https://campusai.com.ng";
+  const rawPath = reqPath ? reqPath.split('?')[0] : '/';
+  const cleanPath = rawPath === '/' ? '' : rawPath.replace(/\/+$/, '');
+  const canonical = `${siteDomain}${cleanPath || '/'}`;
+
+  let title = "JAMB 2026 Aggregate Calculator & Admission Portal | CampusAI";
+  let description = "Nigeria's premier academic platform: JAMB CBT exam simulator, 2026 university aggregate calculators, cutoff marks, syllabus explorer, and admission studio.";
+  let h1Text = "JAMB 2026 Aggregate Calculator & Admission Portal";
+  let imageUrl = `${siteDomain}/og-image.png`;
+  let isArticle = false;
+
+  if (cleanPath.startsWith('/news/')) {
+    isArticle = true;
+    const rawSlug = cleanPath.split('/news/')[1];
+    const slug = rawSlug ? decodeURIComponent(rawSlug).trim() : '';
+    const formattedTitle = slug
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase())
+      .replace(/\bJamb\b/g, 'JAMB')
+      .replace(/\bUtme\b/g, 'UTME')
+      .replace(/\bUnilag\b/g, 'UNILAG')
+      .replace(/\bLasu\b/g, 'LASU')
+      .replace(/\bCbt\b/g, 'CBT')
+      .replace(/\bJupeb\b/g, 'JUPEB')
+      .replace(/\bFuotuoke\b/g, 'FUOTUOKE')
+      .replace(/\bOau\b/g, 'OAU')
+      .replace(/\bUi\b/g, 'UI')
+      .replace(/\bFuta\b/g, 'FUTA');
+
+    title = `${formattedTitle} | CampusAI News`;
+    description = formatSeoDescription(`Read verified updates on ${formattedTitle}. Latest JAMB cut-offs, screening alerts, and admission guidance on CampusAI Nigeria.`, formattedTitle);
+    h1Text = formattedTitle;
+    imageUrl = `${siteDomain}/api/article-image?slug=${encodeURIComponent(slug)}`;
+  } else if (cleanPath === '/calculator') {
+    title = "Official 2026 JAMB & University Aggregate Calculator | CampusAI";
+    description = "Calculate your 2026 university aggregate score automatically. Supports UNILAG, LASU, UI, OAU, UNIBEN, FUTA, and all accredited Nigerian institutions.";
+    h1Text = "Official 2026 JAMB & University Aggregate Calculator";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Aggregate Score Calculator")}&category=${encodeURIComponent("CampusAI Tools")}`;
+  } else if (cleanPath.endsWith('-aggregate-calculator')) {
+    const schoolSlug = cleanPath.replace(/^\//, '').replace(/-aggregate-calculator$/, '').toUpperCase();
+    title = `${schoolSlug} Aggregate Score Calculator 2026 | CampusAI`;
+    description = `Calculate your 2026 ${schoolSlug} post-UTME screening aggregate score automatically using verified institutional admission weighting formulas.`;
+    h1Text = `${schoolSlug} Aggregate Score Calculator 2026`;
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent(`${schoolSlug} Agg. Calculator`)}&category=${encodeURIComponent(schoolSlug)}`;
+  }
+
+  // Ensure canonical tag is strictly updated regardless of existing attributes
+  let output = html.replace(/<link[^>]*rel=["']?canonical["']?[^>]*\/?>/gi, '');
+  output = output.replace(/<title[^>]*>.*?<\/title>/gi, '');
+  output = output.replace(/<meta[^>]*name=["']description["'][^>]*\/?>/gi, '');
+  output = output.replace(/<meta[^>]*property=["']og:[^"']*["'][^>]*\/?>/gi, '');
+  output = output.replace(/<meta[^>]*name=["']twitter:[^"']*["'][^>]*\/?>/gi, '');
+
+  const fallbackMeta = `
+  <title data-rh="true">${title}</title>
+  <meta data-rh="true" name="description" content="${description}">
+  <link data-rh="true" rel="canonical" href="${canonical}">
+  <meta data-rh="true" property="og:type" content="${isArticle ? 'article' : 'website'}">
+  <meta data-rh="true" property="og:site_name" content="CampusAI Nigeria">
+  <meta data-rh="true" property="og:title" content="${title}">
+  <meta data-rh="true" property="og:description" content="${description}">
+  <meta data-rh="true" property="og:url" content="${canonical}">
+  <meta data-rh="true" property="og:image" content="${imageUrl}">
+  <meta data-rh="true" property="og:image:secure_url" content="${imageUrl}">
+  <meta data-rh="true" property="og:image:type" content="image/png">
+  <meta data-rh="true" property="og:image:width" content="1200">
+  <meta data-rh="true" property="og:image:height" content="630">
+  <meta data-rh="true" name="twitter:card" content="summary_large_image">
+  <meta data-rh="true" name="twitter:title" content="${title}">
+  <meta data-rh="true" name="twitter:description" content="${description}">
+  <meta data-rh="true" name="twitter:image" content="${imageUrl}">
+  `;
+
+  output = output.replace('</head>', `${fallbackMeta}\n</head>`);
+
+  // Inject semantic h1 and main article wrapper into root if rendering news or calculator fallback
+  if (cleanPath.startsWith('/news/') && h1Text) {
+    const fallbackArticleHtml = `
+      <article style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, sans-serif;">
+        <div style="margin-bottom: 20px;">
+          <a href="${siteDomain}/news" style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #2563eb; text-decoration: none;">← Return to Admissions News Feed</a>
+        </div>
+        <h1 style="font-size: 2.25rem; font-weight: 900; color: #0f172a; margin-bottom: 16px; line-height: 1.25;">${h1Text}</h1>
+        <p style="font-size: 1.125rem; color: #475569; line-height: 1.7; margin-bottom: 24px;">${description}</p>
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; margin-bottom: 24px;">
+          <p style="color: #334155; line-height: 1.7;">Official institutional update. Verified by CampusAI Nigeria Academic Intelligence Desk. Practice CBT past questions, check cut-off marks, and verify screening requirements.</p>
+        </div>
+        <p><a href="${siteDomain}/calculator" style="color: #2563eb; font-weight: 700; text-decoration: none;">Calculate Your 2026 Aggregate Score →</a></p>
+      </article>
+    `;
+    output = output.replace(/<div id="root">[\s\S]*<\/div>(?=\s*<script)/i, `<div id="root">\n${fallbackArticleHtml}\n</div>`);
+  }
+
+  return output;
+}
+
+async function generateInjectedSEO(html: string, reqPath: string, adminDb: any, dbInstance?: any): Promise<string> {
+  const siteDomain = "https://campusai.com.ng";
+  const rawPath = reqPath ? reqPath.split('?')[0] : '/';
+  const cleanPath = rawPath === '/' ? '' : rawPath.replace(/\/+$/, '');
+  const canonical = `${siteDomain}${cleanPath || '/'}`;
+
+  let title = "JAMB 2026 Aggregate Calculator & Admission Portal | CampusAI";
+  let description = "Calculate your 2026 university aggregate score, check departmental cut-off marks, and verify admission requirements across Nigerian institutions.";
+  let imageUrl = `${siteDomain}/og-image.png`;
+  let isArticle = false;
+  let articleAuthor = "Emmanuel Iweh";
+  let articleSection = "JAMB News";
+  let publishedTimeIso = new Date().toISOString();
+  let modifiedTimeIso = new Date().toISOString();
+  let jsonLd: any = null;
+  let serverBodyHtml = '';
+
+  if (cleanPath.startsWith('/news/')) {
+    isArticle = true;
+    const rawSlug = cleanPath.split('/')[2];
+    const slug = rawSlug ? decodeURIComponent(rawSlug).trim() : '';
+    if (slug) {
+      try {
+        let docData: any = null;
+
+        if (adminDb) {
+          try {
+            const docRef = adminDb.collection('news').doc(slug);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+              docData = docSnap.data();
+            } else {
+              const snap = await adminDb.collection('news').where('slug', '==', slug).limit(1).get();
+              if (!snap.empty) {
+                docData = snap.docs[0].data();
+              } else {
+                const idSnap = await adminDb.collection('news').where('id', '==', slug).limit(1).get();
+                if (!idSnap.empty) {
+                  docData = idSnap.docs[0].data();
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("[SEO] AdminDb lookup failed:", e);
+          }
+        }
+
+        if (!docData && dbInstance) {
+          try {
+            const { doc, getDoc, collection, query, where, limit, getDocs } = await import('firebase/firestore');
+            const docRef = doc(dbInstance, 'news', slug);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              docData = docSnap.data();
+            } else {
+              const q = query(collection(dbInstance, 'news'), where('slug', '==', slug), limit(1));
+              const querySnap = await getDocs(q);
+              if (!querySnap.empty) {
+                docData = querySnap.docs[0].data();
+              } else {
+                const qId = query(collection(dbInstance, 'news'), where('id', '==', slug), limit(1));
+                const idSnap = await getDocs(qId);
+                if (!idSnap.empty) {
+                  docData = idSnap.docs[0].data();
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("[SEO] DbInstance lookup failed:", e);
+          }
+        }
+
+        if (!docData && Array.isArray(MOCK_NEWS)) {
+          docData = MOCK_NEWS.find((m: any) => (m.slug === slug || m.id === slug));
+        }
+
+        // If still not found, construct a valid article from the slug itself so bots get a dedicated article page with matching canonical & H1
+        if (!docData) {
+          const derivedTitle = slug
+            .replace(/[-_]+/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase())
+            .replace(/\bJamb\b/g, 'JAMB')
+            .replace(/\bUtme\b/g, 'UTME')
+            .replace(/\bUnilag\b/g, 'UNILAG')
+            .replace(/\bLasu\b/g, 'LASU')
+            .replace(/\bCbt\b/g, 'CBT')
+            .replace(/\bJupeb\b/g, 'JUPEB');
+          docData = {
+            title: derivedTitle,
+            excerpt: `Read full verified reporting on ${derivedTitle}. Comprehensive admission guidelines, cutoff requirements, and official screening dates.`,
+            category: "JAMB News",
+            author: "CampusAI Editorial",
+            date: new Date().toISOString()
+          };
+        }
+
+        if (docData) {
+          const articleTitle = docData.title || "Admission News Update";
+          const articleExcerpt = docData.excerpt || docData.description || description;
+          const articleBody = docData.fullContent || docData.content || docData.body || articleExcerpt;
+          articleAuthor = docData.author || "Emmanuel Iweh";
+          articleSection = docData.category || "JAMB News";
+          const pubDateStr = formatDate(docData.date || docData.createdAt);
+          publishedTimeIso = formatIsoDate(docData.date || docData.createdAt);
+          modifiedTimeIso = formatIsoDate(docData.updatedAt || docData.date || docData.createdAt);
+
+          title = `${articleTitle} | CampusAI News`;
+          description = formatSeoDescription(articleExcerpt, articleTitle);
+
+          let version = Date.now();
+          if (docData.updatedAt) {
+            if (typeof docData.updatedAt.toMillis === 'function') version = docData.updatedAt.toMillis();
+            else if (typeof docData.updatedAt.toDate === 'function') version = docData.updatedAt.toDate().getTime();
+            else {
+              const parsed = new Date(docData.updatedAt).getTime();
+              if (!isNaN(parsed) && parsed > 0) version = parsed;
+            }
+          }
+
+          // Dedicated high-performance OpenGraph link preview image endpoint for WhatsApp, Facebook, Twitter, and LinkedIn
+          imageUrl = `${siteDomain}/api/article-image?slug=${encodeURIComponent(slug)}&v=${version}`;
+
+          const renderedContent = renderMarkdownToHtml(articleBody);
+
+          jsonLd = {
+            "@context": "https://schema.org",
+            "@type": "NewsArticle",
+            "mainEntityOfPage": {
+              "@type": "WebPage",
+              "@id": canonical
+            },
+            "headline": articleTitle,
+            "description": description,
+            "articleBody": articleBody,
+            "image": [imageUrl],
+            "datePublished": publishedTimeIso,
+            "dateModified": modifiedTimeIso,
+            "author": [{
+              "@type": "Person",
+              "name": articleAuthor,
+              "url": siteDomain
+            }],
+            "publisher": {
+              "@type": "Organization",
+              "name": "CampusAI Nigeria",
+              "url": siteDomain,
+              "logo": {
+                "@type": "ImageObject",
+                "url": `${siteDomain}/favicon.ico.png`
+              }
+            }
+          };
+
+          // Generate Server HTML Article for bots, crawlers, and non-JS clients
+          serverBodyHtml = `
+            <article id="server-news-article" style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #0f172a; line-height: 1.6; background-color: #ffffff;">
+              <div style="margin-bottom: 24px;">
+                <a href="${siteDomain}/news" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #2563eb; text-decoration: none;">
+                  ← Return to Admissions News Feed
+                </a>
+              </div>
+
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 12px; font-weight: 700; color: #64748b;">
+                <span style="background-color: #2563eb; color: #ffffff; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; font-weight: 900;">${articleSection}</span>
+                <span>Published: ${pubDateStr}</span>
+                <span>•</span>
+                <span>By <strong style="color: #0eb38c;">${articleAuthor}</strong></span>
+                ${docData.views ? `<span>•</span> <span>${docData.views.toLocaleString()} Reads</span>` : ''}
+              </div>
+
+              <h1 style="font-size: 2.25rem; font-weight: 900; line-height: 1.25; color: #1e293b; margin: 0 0 24px 0; letter-spacing: -0.02em;">
+                ${articleTitle}
+              </h1>
+
+              ${imageUrl ? `
+                <div style="margin-bottom: 32px; border-radius: 20px; overflow: hidden; max-height: 480px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08);">
+                  <img src="${imageUrl}" alt="${articleTitle}" style="width: 100%; height: auto; object-fit: cover; display: block;" />
+                </div>
+              ` : ''}
+
+              ${articleExcerpt ? `
+                <div style="font-size: 1.2rem; font-weight: 800; color: #1e293b; font-style: italic; border-left: 4px solid #2563eb; padding-left: 20px; margin-bottom: 32px; line-height: 1.6; background-color: #f8fafc; padding-top: 14px; padding-bottom: 14px; border-radius: 0 12px 12px 0;">
+                  "${articleExcerpt}"
+                </div>
+              ` : ''}
+
+              <div class="article-content" style="font-size: 1.125rem; color: #334155; line-height: 1.8;">
+                ${renderedContent}
+              </div>
+
+              ${docData.sourceUrl ? `
+                <div style="margin-top: 28px; font-size: 13px; font-weight: 600; color: #64748b;">
+                  Official Source Reference: <a href="${docData.sourceUrl}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">${docData.sourceUrl}</a>
+                </div>
+              ` : ''}
+
+              <div style="margin-top: 48px; padding: 28px; background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 2px solid #bfdbfe; border-radius: 24px; text-align: center;">
+                <h3 style="font-size: 1.35rem; font-weight: 900; color: #1e3a8a; margin: 0 0 8px 0; text-transform: uppercase;">Calculate Your 2026 University Aggregate Score</h3>
+                <p style="font-size: 0.95rem; font-weight: 600; color: #475569; margin: 0 0 20px 0; line-height: 1.5;">Check your admission chances across UNILAG, LASU, UI, OAU, FUTA, UNIBEN, and accredited Nigerian institutions with CampusAI's official formula engine.</p>
+                <a href="${siteDomain}/calculator" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 800; padding: 14px 28px; border-radius: 14px; text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 4px 14px rgba(37,99,235,0.3);">
+                  Calculate Aggregate Score Now →
+                </a>
+              </div>
+            </article>
+          `;
+        } else {
+          // Fallback static article generated from slug if docData is not retrieved
+          const formattedTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          title = `${formattedTitle} | CampusAI News`;
+          description = `Latest updates on ${formattedTitle}. Check official registration details, cutoff marks, and admission requirements on CampusAI Nigeria.`;
+          imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent(formattedTitle)}&category=${encodeURIComponent('JAMB News')}`;
+
+          serverBodyHtml = `
+            <article id="server-news-article" style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #0f172a; line-height: 1.6; background-color: #ffffff;">
+              <div style="margin-bottom: 24px;">
+                <a href="${siteDomain}/news" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #2563eb; text-decoration: none;">
+                  ← Return to Admissions News Feed
+                </a>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 12px; font-weight: 700; color: #64748b;">
+                <span style="background-color: #2563eb; color: #ffffff; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; font-weight: 900;">JAMB News</span>
+                <span>Published: ${formatDate(null)}</span>
+                <span>•</span>
+                <span>By <strong style="color: #0eb38c;">Emmanuel Iweh</strong></span>
+              </div>
+
+              <h1 style="font-size: 2.25rem; font-weight: 900; line-height: 1.25; color: #1e293b; margin: 0 0 24px 0;">
+                ${formattedTitle}
+              </h1>
+
+              <p style="font-size: 1.125rem; color: #334155; line-height: 1.8; margin-bottom: 20px;">
+                Get verified updates regarding <strong>${formattedTitle}</strong> for the 2026/2027 academic session. CampusAI monitors official institutional portals, JAMB CAPS, and departmental cut-off announcements.
+              </p>
+
+              <div style="margin-top: 48px; padding: 28px; background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 2px solid #bfdbfe; border-radius: 24px; text-align: center;">
+                <h3 style="font-size: 1.35rem; font-weight: 900; color: #1e3a8a; margin: 0 0 8px 0; text-transform: uppercase;">Calculate Your 2026 University Aggregate Score</h3>
+                <p style="font-size: 0.95rem; font-weight: 600; color: #475569; margin: 0 0 20px 0; line-height: 1.5;">Check your admission chances across UNILAG, LASU, UI, OAU, FUTA, UNIBEN, and accredited Nigerian institutions with CampusAI's official formula engine.</p>
+                <a href="${siteDomain}/calculator" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-weight: 800; padding: 14px 28px; border-radius: 14px; text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 4px 14px rgba(37,99,235,0.3);">
+                  Calculate Aggregate Score Now →
+                </a>
+              </div>
+            </article>
+          `;
+        }
+      } catch (err) {
+        console.error("[SEO] Error fetching news item:", err);
+      }
+    }
+  } else if (cleanPath === '/cbt-simulator' || cleanPath === '/cbt' || cleanPath === '/study-hub' || cleanPath === '/target' || cleanPath === '/ai-coach') {
+    title = "2026 JAMB CBT Exam Simulator & Study Hub | CampusAI";
+    description = "Practice real JAMB CBT past questions, test time management, review AI answer explanations, and track your target admission score on CampusAI Nigeria.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("JAMB CBT Simulator")}&category=${encodeURIComponent("CBT Practice")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "JAMB CBT Exam Simulator 2026",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/cgpa-calculator' || cleanPath === '/cgpa') {
+    title = "University & Polytechnic CGPA Calculator | CampusAI";
+    description = "Multi-semester Nigerian higher education CGPA calculator. Forecast graduation class of degree, calculate semester GP, and track academic honors goals.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("CGPA Calculator")}&category=${encodeURIComponent("Academic Tools")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "CGPA Analytics Studio & GPA Planner",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/jamb-caps' || cleanPath === '/caps' || cleanPath === '/caps-portal') {
+    title = "JAMB CAPS 2026 Admission Status Tracker | CampusAI";
+    description = "Check your 2026 JAMB CAPS admission status, transfer approvals, O'Level upload verification, and marketplace offers across Nigerian tertiary institutions.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("JAMB CAPS Tracker")}&category=${encodeURIComponent("Admission Portal")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "JAMB CAPS 2026 Admission Status Tracker",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/admission-checklist' || cleanPath === '/checklist') {
+    title = "2026 University Admission Document Checklist | CampusAI";
+    description = "The complete list of required registration documents for Nigerian university clearance. Track O'Level results, birth certificates, and JAMB admission letters.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Admission Checklist")}&category=${encodeURIComponent("Admissions")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "2026 Admission Document Checklist",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/cbt-locator' || cleanPath === '/locator') {
+    title = "JAMB CBT Centres & University Campus Locator | CampusAI";
+    description = "Find accredited JAMB CBT examination centres, university campuses, and student accommodation across Nigeria with Google Maps grounded navigation search.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("CBT Centre Locator")}&category=${encodeURIComponent("Navigation")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "JAMB CBT Center & Campus Locator",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/admissions') {
+    title = "2026 Admissions Knowledge Base & Requirements | CampusAI";
+    description = "Explore official JAMB 2026 course requirements, UTME subject combinations, O'Level credits, and institution-specific special admission considerations.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Admissions Explorer")}&category=${encodeURIComponent("Course Requirements")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "2026 Admissions Knowledge Base",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/pdf-store' || cleanPath === '/pdf') {
+    title = "Academic Past Questions & Post-UTME PDF Store | CampusAI";
+    description = "Download verified JAMB CBT past questions, Post-UTME screening past papers, syllabuses, and academic preparation PDF resources on CampusAI Nigeria.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("PDF Store")}&category=${encodeURIComponent("Study Resources")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Academic PDF Store & Study Vault",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/discussions' || cleanPath === '/discussion-hub') {
+    title = "Nigerian Student Admission Discussion Hub | CampusAI";
+    description = "Join thousands of Nigerian candidates in our admissions forum. Discuss Post-UTME screening, share CBT strategies, and get verified school answers.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Discussion Hub")}&category=${encodeURIComponent("Community")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Nigerian Student Admission Discussions",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/universities' || cleanPath === '/directory') {
+    title = "2026 Institutional Gateways & Portal Directory | CampusAI";
+    description = "Direct access to verified admission portals, screening dates, cutoffs, and departmental academic profiles for over 150 Nigerian higher institutions.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("University Directory")}&category=${encodeURIComponent("Portals")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Nigerian Higher Institution Directory",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/contact' || cleanPath === '/contact-us' || cleanPath === '/support') {
+    title = "Contact Support & Academic Inquiries | CampusAI Nigeria";
+    description = "Contact the CampusAI Nigeria academic support team. Inquire about JAMB preparation, university admissions, calculator formulas, and partnership.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Contact Support")}&category=${encodeURIComponent("Support")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      "name": "CampusAI Support & Contact",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/syllabus' || cleanPath.startsWith('/syllabus/')) {
+    title = "Official 2026 JAMB Syllabus & Subject Outlines | CampusAI";
+    description = "Access the complete, updated 2026 JAMB syllabus for all subjects. Get detailed topics, recommended texts, and admission insights from CampusAI.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Syllabus Finder")}&category=${encodeURIComponent("CampusAI Tools")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "JAMB Syllabus Finder 2026",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+  } else if (cleanPath === '/postutme' || cleanPath === '/post-utme' || cleanPath === '/result-slip' || cleanPath === '/result') {
+    title = "2026/2027 Post-UTME Screening Hub & Release Dates | CampusAI";
+    description = "Official tracking for 2026 Post-UTME registration dates, screening schedules, and merit cut-off marks for Nigerian federal and state universities.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Check Admissions")}&category=${encodeURIComponent("CampusAI Tools")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Post-UTME Release Hub 2026",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/status') {
+    title = "System Status & Service Uptime Monitor | CampusAI Nigeria";
+    description = "Check real-time system status and uptime for CampusAI Nigeria admission prediction engines, database sync, CBT simulator, and calculator nodes.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("System Status")}&category=${encodeURIComponent("CampusAI Platform")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "CampusAI System Status",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/dashboard') {
+    title = "Student Admission Dashboard & Tracker 2026 | CampusAI";
+    description = "Monitor your JAMB scores, university merit chances, and academic progress in real-time with personalized AI insights on CampusAI.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Student Dashboard")}&category=${encodeURIComponent("Admission Tracker")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Student Admission Dashboard 2026",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/terms' || cleanPath === '/terms-of-service') {
+    title = "Terms of Service & Usage Agreement | CampusAI Nigeria";
+    description = "Read CampusAI Nigeria official terms of service, platform usage rules, AI consultation guidelines, and user agreement for our academic tools and services.";
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "CampusAI Terms of Service",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/privacy' || cleanPath === '/privacy-policy' || cleanPath === '/calculator-privacy' || cleanPath === '/calculation-privacy') {
+    title = "Privacy Policy & Student Data Protection | CampusAI Nigeria";
+    description = "CampusAI Nigeria user data privacy policy, secure profile standards, cookie handling practices, and protection guidelines for Nigerian students.";
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "CampusAI Privacy Policy",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/cookies' || cleanPath === '/cookie-policy') {
+    title = "Cookie Policy & Tracking Preferences | CampusAI Nigeria";
+    description = "CampusAI Nigeria cookie policy, web analytics details, local storage usage, and privacy preference settings for academic exploration tools.";
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "CampusAI Cookie Policy",
+      "url": canonical,
+      "description": description
+    };
+  } else if (cleanPath === '/news') {
+    title = "2026/2027 JAMB & Admission News Hub | CampusAI";
+    description = "Stay informed with real-time JAMB updates, university Post-UTME registration dates, cutoff marks, and admission news across Nigerian institutions.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("University News")}&category=${encodeURIComponent("Admission Updates")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "CampusAI Admissions News Feed",
+      "url": canonical,
+      "description": description
+    };
+
+    try {
+      let newsItems: any[] = [];
+      if (adminDb) {
+        const snap = await adminDb.collection('news').orderBy('createdAt', 'desc').limit(10).get();
+        snap.forEach((doc: any) => newsItems.push(doc.data()));
+      }
+      if (newsItems.length > 0) {
+        const listHtml = newsItems.map(item => `
+          <div style="margin-bottom: 24px; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px;">
+            <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; background-color: #2563eb; color: #ffffff; padding: 3px 8px; border-radius: 9999px;">${item.category || 'News'}</span>
+            <h2 style="font-size: 1.25rem; font-weight: 800; margin: 12px 0 8px 0;">
+              <a href="${siteDomain}/news/${item.slug || item.id}" style="color: #0f172a; text-decoration: none;">${item.title}</a>
+            </h2>
+            <p style="font-size: 0.95rem; color: #475569; margin-bottom: 12px; line-height: 1.5;">${item.excerpt || ''}</p>
+            <a href="${siteDomain}/news/${item.slug || item.id}" style="font-size: 12px; font-weight: 800; color: #2563eb; text-decoration: none;">Read Full Article →</a>
+          </div>
+        `).join('');
+
+        serverBodyHtml = `
+          <section style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, sans-serif;">
+            <h1 style="font-size: 2rem; font-weight: 900; color: #0f172a; margin-bottom: 8px;">2026 Admissions News & Updates</h1>
+            <p style="font-size: 1rem; color: #64748b; margin-bottom: 32px;">Verified news, cut-off marks, and Post-UTME screening forms for Nigerian Universities, Polytechnics, and Colleges.</p>
+            ${listHtml}
+          </section>
+        `;
+      }
+    } catch (e) {
+      console.warn("[SEO] Failed to pre-render news list:", e);
+    }
+  } else if (cleanPath === '/calculator') {
+    title = "Official 2026 JAMB & University Aggregate Calculator | CampusAI";
+    description = "Calculate your 2026 university aggregate score automatically. Supports UNILAG, LASU, UI, OAU, UNIBEN, FUTA, and all accredited Nigerian institutions.";
+    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Aggregate Score Calculator")}&category=${encodeURIComponent("CampusAI Tools")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "JAMB & University Aggregate Calculator 2026",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All"
+    };
+
+    serverBodyHtml = `
+      <section style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, sans-serif; text-align: center;">
+        <h1 style="font-size: 2.25rem; font-weight: 900; color: #0f172a; margin-bottom: 12px;">2026 JAMB & University Aggregate Calculator</h1>
+        <p style="font-size: 1.1rem; color: #475569; max-width: 600px; margin: 0 auto 32px auto; line-height: 1.6;">Calculate your admission chances for UNILAG, LASU, UI, OAU, FUTA, UNIBEN, and accredited Nigerian higher institutions instantly.</p>
+        <div style="padding: 24px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; text-align: left;">
+          <h3 style="font-size: 1.2rem; font-weight: 800; color: #0f172a; margin-bottom: 12px;">Supported Institutional Formulas:</h3>
+          <ul style="line-height: 1.8; color: #334155; font-size: 1rem; padding-left: 20px;">
+            <li><strong>75:25 Point-Based Screening Formula</strong> (FUTA)</li>
+            <li><strong>50:50 Composite Exam Formula</strong> (UI, UNIBEN, DELSU)</li>
+            <li><strong>50:30:20 Weighted Screening Model</strong> (UNILAG, UNILORIN, FUTMinna)</li>
+            <li><strong>60:40 Point Model & 10-Point Scales</strong> (LASU, FUOYE, OAU)</li>
+            <li><strong>Catchment Area & Statutory ELDS Quota Assessment</strong></li>
+          </ul>
+        </div>
+      </section>
+    `;
+  } else if (cleanPath.endsWith('-aggregate-calculator')) {
+    const schoolSlug = cleanPath.split('/').pop()?.replace("-aggregate-calculator", "").toUpperCase();
+    if (schoolSlug) {
+      title = `${schoolSlug} 2026 Aggregate Calculator | CampusAI`;
+      description = `Calculate your 2026 ${schoolSlug} aggregate score and check your admission chances instantly. Use the official formula, cutoff marks, and catchment area rules for ${schoolSlug}.`;
+      imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent(`${schoolSlug} Agg. Calculator`)}&category=${encodeURIComponent(`${schoolSlug}`)}`;
+      jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": `${schoolSlug} Aggregate Calculator 2026`,
+        "url": canonical,
+        "description": description,
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "All",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "NGN"
+        }
+      };
+
+      serverBodyHtml = `
+        <section style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, sans-serif; text-align: center;">
+          <h1 style="font-size: 2.25rem; font-weight: 900; color: #0f172a; margin-bottom: 12px;">${schoolSlug} Aggregate Calculator 2026</h1>
+          <p style="font-size: 1.1rem; color: #475569; max-width: 600px; margin: 0 auto 32px auto; line-height: 1.6;">Calculate your official 2026 ${schoolSlug} aggregate score using JAMB UTME, Post-UTME screening, and O'Level subject points.</p>
+        </section>
+      `;
+    }
+  } else {
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "CampusAI Nigeria",
+      "url": canonical,
+      "description": description,
+      "applicationCategory": "EducationApplication",
+      "operatingSystem": "All",
+      "author": {
+        "@type": "Person",
+        "name": "Emmanuel Iweh"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "NGN"
+      }
+    };
+  }
+
+  // Formatting constraints
+  let cleanTitle = title;
+  if (cleanTitle.length > 70) {
+    const truncated = cleanTitle.substring(0, 67);
+    const lastSpace = truncated.lastIndexOf(' ');
+    cleanTitle = (lastSpace > 25 ? truncated.substring(0, lastSpace) : truncated) + '...';
+  }
+
+  let cleanDescription = description;
+  if (cleanDescription.length > 160) {
+    const truncatedDesc = cleanDescription.substring(0, 157);
+    const lastSpace = truncatedDesc.lastIndexOf(' ');
+    cleanDescription = (lastSpace > 50 ? truncatedDesc.substring(0, lastSpace) : truncatedDesc) + '...';
+  }
+
+  // Build complete dynamic Open Graph & Twitter meta tags block
+  const imageType = (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.jpeg') || imageUrl.includes('/api/article-image')) ? 'image/jpeg' : imageUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+
+  const metaTags = `
+    <!-- Primary Page Metadata -->
+    <title data-rh="true">${cleanTitle}</title>
+    <meta data-rh="true" name="description" content="${cleanDescription}">
+    <meta data-rh="true" name="keywords" content="JAMB 2026, aggregate calculator, cutoff marks 2026, Nigerian university admission, Post-UTME updates, UNILAG, LASU, UI, OAU, FUTA, UNIBEN">
+    <meta data-rh="true" name="author" content="${articleAuthor}">
+    <link data-rh="true" rel="canonical" href="${canonical}">
+
+    <!-- Open Graph / Facebook / WhatsApp / Telegram / LinkedIn / Discord -->
+    <meta data-rh="true" property="og:type" content="${isArticle ? 'article' : 'website'}">
+    <meta data-rh="true" property="og:site_name" content="CampusAI Nigeria">
+    <meta data-rh="true" property="og:title" content="${cleanTitle}">
+    <meta data-rh="true" property="og:description" content="${cleanDescription}">
+    <meta data-rh="true" property="og:image" content="${imageUrl}">
+    <meta data-rh="true" property="og:image:secure_url" content="${imageUrl}">
+    <meta data-rh="true" property="og:image:type" content="${imageType}">
+    <meta data-rh="true" property="og:image:width" content="1200">
+    <meta data-rh="true" property="og:image:height" content="630">
+    <meta data-rh="true" property="og:image:alt" content="${cleanTitle}">
+    <meta data-rh="true" property="og:url" content="${canonical}">
+    <meta data-rh="true" property="og:locale" content="en_NG">
+    ${isArticle ? `
+    <meta data-rh="true" property="article:published_time" content="${publishedTimeIso}">
+    <meta data-rh="true" property="article:modified_time" content="${modifiedTimeIso}">
+    <meta data-rh="true" property="article:author" content="${articleAuthor}">
+    <meta data-rh="true" property="article:section" content="${articleSection}">
+    ` : ''}
+
+    <!-- Twitter Card Tags -->
+    <meta data-rh="true" name="twitter:card" content="summary_large_image">
+    <meta data-rh="true" name="twitter:site" content="@CampusAI_NG">
+    <meta data-rh="true" name="twitter:creator" content="@CampusAI_NG">
+    <meta data-rh="true" name="twitter:title" content="${cleanTitle}">
+    <meta data-rh="true" name="twitter:description" content="${cleanDescription}">
+    <meta data-rh="true" name="twitter:image" content="${imageUrl}">
+    <meta data-rh="true" name="twitter:image:alt" content="${cleanTitle}">
+  `;
+
+  // Strip existing conflicting title, meta description, og:*, twitter:*, article:* and canonical tags
+  html = html.replace(/<title[^>]*>.*?<\/title>/gi, '');
+  html = html.replace(/<meta[^>]*name="description"[^>]*>/gi, '');
+  html = html.replace(/<meta[^>]*property="og:[^"]*"[^>]*>/gi, '');
+  html = html.replace(/<meta[^>]*name="twitter:[^"]*"[^>]*>/gi, '');
+  html = html.replace(/<meta[^>]*property="twitter:[^"]*"[^>]*>/gi, '');
+  html = html.replace(/<meta[^>]*property="article:[^"]*"[^>]*>/gi, '');
+  html = html.replace(/<link[^>]*rel=["']?canonical["']?[^>]*\/?>/gi, '');
+
+  // Inject metaTags block before </head>
+  html = html.replace('</head>', `${metaTags}\n</head>`);
+
+  // Inject JSON-LD
+  if (jsonLd) {
+    const jsonLdString = `<script data-rh="true" type="application/ld+json">\n${JSON.stringify(jsonLd, null, 2)}\n</script>`;
+    if (html.includes('type="application/ld+json"')) {
+      html = html.replace(/<script[^>]*type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/i, jsonLdString);
+    } else {
+      html = html.replace('</head>', `  ${jsonLdString}\n  </head>`);
+    }
+  }
+
+  // Inject Server Rendered Body into <noscript> for crawlers, AI bots, and non-JS clients without breaking client preloader
+  if (serverBodyHtml) {
+    if (html.includes('<noscript>')) {
+      html = html.replace(/<noscript>[\s\S]*?<\/noscript>/i, `<noscript>\n${serverBodyHtml}\n</noscript>`);
+    }
+  }
+
+  return html;
+}

@@ -1,0 +1,1951 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowLeft, Clock, Share2, Bookmark, ThumbsUp, ShieldCheck, Sparkles,
+  User, Send, MessageSquare, Trash2, Loader2, LogIn, Check, RefreshCw,
+  Wand2, Brain, Edit3, Zap, Eye, Copy, Link, CheckCircle2, Image as ImageIcon,
+  Maximize2, ChevronLeft, ChevronRight, X, ExternalLink, Calculator, BookOpen, Activity, BookmarkCheck
+} from 'lucide-react';
+import { trackOfficialPortalClick, trackCalculatorOpen, trackArticleSignupClick } from '../services/analytics';
+import { NewsItem, Comment } from '../types';
+import {
+  fetchNewsComments, postNewsComment, deleteNewsComment,
+  getNewsItemBySlug, updateNewsArticleContent, logUserActivity,
+  deleteNewsUpdate, enhanceNewsArticleContent, incrementAndGetArticleViews, incrementAndGetArticleShares,
+  updateNewsItem, toggleBookmarkArticle, readBookmarkIds, readLikedArticleIds,
+  getArticleLikesCount, toggleArticleLike
+} from '../services/dbService';
+import { ArticleImagesUploader } from './ArticleImagesUploader';
+import { expandNewsArticle } from '../services/geminiService';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import SEO from './SEO';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { NewsCard } from './NewsGrid';
+import { OfficialPdfDownloadCard } from './OfficialPdfDownloadCard';
+import { ResponsiveMarkdownTable, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from './ResponsiveMarkdownTable';
+import { formatNewsPostTime } from '../utils/dateUtils';
+import AdUnit from './AdUnit';
+
+interface NewsDetailViewProps {
+  news?: NewsItem;
+  user: any;
+  onClose: () => void;
+  relatedNews: NewsItem[];
+  onSelectRelated: (news: NewsItem) => void;
+  onLoginRequest: () => void;
+  isAdmin?: boolean;
+}
+
+const getFallbackDateStr = (item: NewsItem | null): string => {
+  if (!item) return "";
+  return formatNewsPostTime(item).combinedDetail;
+};
+
+const XVideoEmbed: React.FC<{ tweetId: string; cleanHref: string }> = ({ tweetId, cleanHref }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [status, setStatus] = React.useState<'loading' | 'success' | 'fallback'>('loading');
+
+  React.useEffect(() => {
+    let isMounted = true;
+    let scriptTimer: NodeJS.Timeout;
+    const wrapper = document.createElement('div');
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+      containerRef.current.appendChild(wrapper);
+    }
+
+    const renderTweet = () => {
+      if ((window as any).twttr && (window as any).twttr.widgets) {
+        if (containerRef.current) {
+          (window as any).twttr.widgets
+            .createTweet(tweetId, wrapper, {
+              theme: 'dark',
+              align: 'center',
+              conversation: 'none',
+              cards: 'visible',
+              dnt: true
+            })
+            .then((el: any) => {
+              if (isMounted) {
+                if (el) setStatus('success');
+                else setStatus('fallback');
+              } else {
+                // If unmounted while fetching, clean up the injected iframe
+                wrapper.remove();
+              }
+            })
+            .catch(() => {
+              if (isMounted) setStatus('fallback');
+            });
+        }
+      } else {
+        setStatus('fallback');
+      }
+    };
+
+    if (!(window as any).twttr) {
+      const existingScript = document.getElementById('twitter-wjs');
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.id = 'twitter-wjs';
+        script.src = 'https://platform.twitter.com/widgets.js';
+        script.async = true;
+        script.onload = () => {
+          if (isMounted) renderTweet();
+        };
+        script.onerror = () => {
+          if (isMounted) setStatus('fallback');
+        };
+        document.body.appendChild(script);
+      } else {
+        existingScript.addEventListener('load', renderTweet);
+        scriptTimer = setTimeout(() => {
+          if (isMounted && status === 'loading') {
+            renderTweet();
+          }
+        }, 1500);
+      }
+    } else {
+      renderTweet();
+    }
+
+    const fallbackTimer = setTimeout(() => {
+      if (isMounted && status === 'loading') {
+        setStatus('fallback');
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(scriptTimer);
+      clearTimeout(fallbackTimer);
+      wrapper.remove(); // Synchronously remove from DOM on unmount
+    };
+  }, [tweetId]);
+
+  return (
+    <div className="my-8 flex justify-center w-full">
+      <div className="w-full max-w-[550px] relative">
+        <div ref={containerRef} className="w-full flex justify-center min-h-[200px]" />
+
+        {status === 'loading' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400 bg-gray-50/5 rounded-xl border border-gray-100/10 min-h-[200px]">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <span className="text-xs font-semibold">Loading X post...</span>
+          </div>
+        )}
+
+        {status === 'fallback' && (
+          <div className="w-full my-2 p-6 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 text-center flex flex-col items-center gap-4 shadow-xl">
+            <div className="w-14 h-14 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+              <Zap className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-white">Watch Official JAMB Broadcast</h4>
+              <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                Play the full video announcement directly on X (Twitter).
+              </p>
+            </div>
+            <a
+              href={cleanHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-xs font-bold tracking-wide transition-all shadow-lg shadow-blue-600/30 active:scale-95 flex items-center gap-2"
+            >
+              <span>Play Video on X</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const NewsDetailView: React.FC<NewsDetailViewProps> = ({
+  news: initialNews, user, onClose, relatedNews, onSelectRelated, onLoginRequest, isAdmin
+}) => {
+  const { slug }    = useParams();
+  const location    = useLocation();
+  const navigate    = useNavigate();
+
+  const [news, setNews]                   = useState<NewsItem | null>(initialNews || location.state?.article || null);
+  const [comments, setComments]           = useState<Comment[]>([]);
+  const [commentText, setCommentText]     = useState('');
+  const [isSubmitting, setIsSubmitting]   = useState(false);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
+  const [isLoadingNews, setIsLoadingNews] = useState(!initialNews && !location.state?.article);
+  const [isExpanding, setIsExpanding]     = useState(false);
+  const [related, setRelated]             = useState<{ title: string; url: string }[]>([]);
+  const [expansionError, setExpansionError] = useState<string | null>(null);
+  const [isLiked, setIsLiked]             = useState(false);
+  const [likesCount, setLikesCount]       = useState<number>(0);
+  const [likesList, setLikesList]         = useState<string[]>([]);
+  const [isBookmarked, setIsBookmarked]   = useState(false);
+  const [bookmarksList, setBookmarksList] = useState<string[]>([]);
+  const [showShareSuccess, setShowShareSuccess] = useState(false);
+  const [isCleaning, setIsCleaning]       = useState(false);
+  const [isEditing, setIsEditing]         = useState(false);
+  const [editableTitle, setEditableTitle] = useState('');
+  const [editableCategory, setEditableCategory] = useState<string>('National');
+  const [editableExcerpt, setEditableExcerpt] = useState('');
+  const [editableDate, setEditableDate]   = useState('');
+  const [editableSourceUrl, setEditableSourceUrl] = useState('');
+  const [editableContent, setEditableContent] = useState('');
+  const [editableImages, setEditableImages]   = useState<string[]>([]);
+  const [editableFeaturedImage, setEditableFeaturedImage] = useState<string>('');
+  const [localRelatedNews, setLocalRelatedNews] = useState<NewsItem[]>(relatedNews || []);
+  const [restoreError, setRestoreError]   = useState<string | null>(null);
+  const [readCount, setReadCount]         = useState<number>(news?.views || 1);
+  const [shareCount, setShareCount]       = useState<number>(news?.shares || 0);
+  const [copiedLink, setCopiedLink]       = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const allPictures = React.useMemo(() => {
+    if (!news) return [];
+    const list: string[] = [];
+    if (news.image && !list.includes(news.image)) list.push(news.image);
+    if (news.images && Array.isArray(news.images)) {
+      news.images.forEach(img => {
+        if (img && !list.includes(img)) list.push(img);
+      });
+    }
+    return list;
+  }, [news?.image, news?.images]);
+
+  useEffect(() => {
+    if (!news?.id) return;
+    incrementAndGetArticleViews(news.id, news.views)
+      .then(views => setReadCount(views))
+      .catch(err => console.error("Error logging article read:", err));
+  }, [news?.id]);
+
+  useEffect(() => {
+    const fetchRelated = async () => {
+      if (!news) return;
+      try {
+        const { getCloudNews } = await import('../services/dbService');
+        const allNews = await getCloudNews(true, false, news.category, undefined, 10);
+        // Ensure we strictly exclude the CURRENT news item by ID and title
+        const filtered = allNews
+          .filter(n => n.id !== news.id && n.title !== news.title && n.category === news.category)
+          .slice(0, 3);
+        setLocalRelatedNews(filtered);
+      } catch (err) {
+        console.error("Related news fetch error:", err);
+      }
+    };
+    
+    fetchRelated();
+  }, [news?.id, news?.category]); // news changes when slug changes or loadNews finishes
+
+  const sanitizeArticleContent = (rawText: string) => {
+    if (!rawText) return '';
+    return rawText
+      .replace(/As a result of Admission into our institution, determined Additional Evidence of requirements following Eastern higher completion milestones.*/gi, '')
+      .replace(/Minimum 135 year incorporating.*/gi, '')
+      .replace(/Across R ment Collect be fur.*/gi, '')
+      .replace(/Msd agreeing tweak validator.*/gi, '')
+      .replace(/eromin \^ earliest.*/gi, '')
+      .replace(/_ed promptly\)\$.*/gi, '')
+      .replace(/Welcome outSteel apart.*/gi, '')
+      .replace(/Candidate unconditional Pl age gorgeous.*/gi, '')
+      .replace(/Timroduce web र DO not written hmm.*/gi, '')
+      .replace(/html At trader injected trades Lil seats.*/gi, '')
+      .replace(/Admission Requirements \( eromin \^ earliest.*/gi, '')
+      .replace(/Kai wa Ọrganĩ Written Subject scores.*/gi, ' ')
+      .replace(/Merchant Proficiency Photo List scores.*/gi, ' ')
+      .replace(/pv lan commonly jointgroup positions.*/gi, ' ')
+      .replace(/Quick Action Checklist for 2026\/2026 Post-UTME Candidates.*/gi, 'Quick Action Checklist for 2025/2026 Post-UTME Candidates')
+      .replace(/ClassName|className|#html|lmore|Timroduce|hmm|il thereby|dan,K detox|\/|\\|:|\$|र| 준비|準備/gi, ' ')
+      .replace(/[\u0370-\u03FF\u1F00-\u1FFF]/g, '')
+      .replace(/\s\s+/g, ' ')
+      .trim();
+  };
+
+  const handleCleanRubbish = async () => {
+    if (!news || isCleaning) return;
+    setIsCleaning(true);
+    try {
+      const cleanContent = sanitizeArticleContent(news.fullContent || (news as any).content || '');
+
+      await updateNewsArticleContent(news.id || news.slug || slug || '', cleanContent);
+      setNews({ ...news, fullContent: cleanContent });
+      setEditableContent(cleanContent);
+      window.dispatchEvent(new Event('campusai_news_updated'));
+      alert("✅ Article cleaned and saved successfully.");
+    } catch (e) {
+      alert("❌ Failed to clean article.");
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
+  const handleManualSave = async () => {
+    if (!news || isCleaning) return;
+    setIsCleaning(true);
+    const targetId = news.id || news.slug || slug || '';
+    console.log("Saving news article...", targetId, editableTitle);
+    try {
+      const updatedFields: Partial<NewsItem> = {
+        ...news,
+        title: editableTitle.trim() || news.title,
+        category: (editableCategory as any) || news.category || 'National',
+        excerpt: editableExcerpt.trim() || news.excerpt,
+        date: editableDate.trim() || news.date,
+        sourceUrl: editableSourceUrl.trim() || news.sourceUrl || '',
+        fullContent: editableContent,
+        images: editableImages,
+        image: editableFeaturedImage || editableImages[0] || news.image || '',
+        isLive: true,
+        updatedAt: new Date().toISOString()
+      };
+      await updateNewsItem(targetId, updatedFields);
+      console.log("Successfully saved news article.");
+      setNews({ ...news, ...updatedFields } as NewsItem);
+      setIsEditing(false);
+      window.dispatchEvent(new Event('campusai_news_updated'));
+      window.dispatchEvent(new Event('campusai_news_sync'));
+      alert("✅ Changes saved successfully to cloud.");
+    } catch (e) {
+      console.error("Failed to save changes:", e);
+      alert("❌ Failed to save changes: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
+  const startEditing = () => {
+    setEditableTitle(news?.title || '');
+    setEditableCategory(news?.category || 'National');
+    setEditableExcerpt(news?.excerpt || '');
+    setEditableDate(news?.date || '');
+    setEditableSourceUrl(news?.sourceUrl || '');
+    setEditableContent(news?.fullContent || (news as any)?.content || news?.excerpt || '');
+    setEditableImages(allPictures);
+    setEditableFeaturedImage(news?.image || allPictures[0] || '');
+    setIsEditing(true);
+  };
+
+  const handleDeleteArticle = async () => {
+    if (!news) return;
+    if (window.confirm("⚠️ Are you sure you want to permanently delete this news article? This action cannot be undone.")) {
+      try {
+        await deleteNewsUpdate(news.id);
+        alert("✅ Article deleted successfully.");
+        window.dispatchEvent(new Event('campusai_news_updated'));
+        onClose();
+        navigate('/');
+      } catch (err) {
+        console.error("Failed to delete article:", err);
+        alert("❌ Failed to delete article.");
+      }
+    }
+  };
+
+  // ── Log activity when article is loaded ──────────────────────────────────
+  useEffect(() => {
+    if (!news) return;
+    const contentForTime = news.fullContent || (news as any).content || (news as any).content || news.excerpt || "";
+    const readTime = Math.max(3, Math.ceil(contentForTime.split(' ').length / 200));
+    logUserActivity({
+      userId: user?.uid || '',
+      type: 'news_read',
+      title: news.title,
+      description: `Read article: ${news.title}`,
+      metadata: { readTime }
+    });
+  }, [news?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch article by slug if not passed via props/state ───────────────────
+  const loadNews = useCallback(async () => {
+    if (!slug) return;
+    setIsLoadingNews(true);
+    try {
+      const data = await getNewsItemBySlug(slug);
+      setNews(data);
+    } finally {
+      setIsLoadingNews(false);
+    }
+  }, [slug]);
+
+  const handleRetrySync = async () => {
+    if (!slug) return;
+    
+    setIsLoadingNews(true);
+    setRestoreError(null);
+    try {
+      // Step 1: Normal Sync Attempt
+      const data = await getNewsItemBySlug(slug);
+      if (data) {
+        setNews(data);
+        setIsLoadingNews(false);
+        return;
+      }
+      
+      // Step 2: Seamless Background Reconstruction if missing from DB
+      const formattedQuery = slug
+        .split('-')
+        .map(word => {
+          const wLower = word.toLowerCase();
+          if (['ae', 'funai', 'jamb', 'utme', 'post', 'oau', 'lasu', 'unn', 'unilag', 'unilorin', 'ui', 'nuc', 'waec'].includes(wLower)) {
+            return word.toUpperCase();
+          }
+          return word.charAt(0).toUpperCase() + word.slice(1);
+        })
+        .join(' ');
+
+      const { smartSearchAndVerifyNews } = await import('../services/geminiService');
+      const { publishNewsUpdate } = await import('../services/dbService');
+
+      const result = await smartSearchAndVerifyNews(formattedQuery);
+      if (result.verified && result.article) {
+        const newArticle = result.article;
+        newArticle.slug = slug;
+        
+        const docId = await publishNewsUpdate(newArticle);
+        const savedArticle = { ...newArticle, id: docId };
+        
+        setNews(savedArticle);
+        window.dispatchEvent(new Event('campusai_news_updated'));
+      } else {
+        setRestoreError("The official database connection timed out. Please try again to synchronize this report.");
+      }
+    } catch (err: any) {
+      console.error("Seamless sync error:", err);
+      setRestoreError("A synchronization error occurred. Please verify your connection and try again.");
+    } finally {
+      setIsLoadingNews(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialNews) {
+      setNews(initialNews);
+      setIsLoadingNews(false);
+    } else if (slug) {
+      setNews(null); // Clear state to show loader and reset related news
+      loadNews();
+    }
+
+    // Listen for global news updates (from Admin Panel)
+    const handleNewsUpdated = () => {
+      if (slug) loadNews();
+    };
+    window.addEventListener('campusai_news_updated', handleNewsUpdated);
+    return () => {
+      window.removeEventListener('campusai_news_updated', handleNewsUpdated);
+    };
+  }, [slug, loadNews, initialNews]);
+
+  // ── Load comments + bookmark state when article id is available ───────────
+  const loadComments = useCallback(async (newsId: string) => {
+    setIsLoadingComments(true);
+    try {
+      const data = await fetchNewsComments(newsId);
+      setComments(data);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!news) return;
+    loadComments(news.id);
+
+    // Restore bookmark and like state
+    try {
+      const saved: string[] = readBookmarkIds();
+      setIsBookmarked(saved.includes(news.id));
+      setBookmarksList(saved);
+    } catch {}
+    try {
+      const likedIds = readLikedArticleIds();
+      setIsLiked(likedIds.includes(news.id));
+      setLikesCount(getArticleLikesCount(news));
+    } catch {}
+
+    // Related links
+    if (news.relatedNews?.length) setRelated(news.relatedNews);
+  }, [news?.id, loadComments, news]);
+
+  useEffect(() => {
+    const handleBookmarksUpdated = () => {
+      try {
+        const saved: string[] = readBookmarkIds();
+        setBookmarksList(saved);
+        if (news) {
+          setIsBookmarked(saved.includes(news.id));
+        }
+      } catch {}
+    };
+    const handleLikesUpdated = () => {
+      if (news) {
+        setIsLiked(readLikedArticleIds().includes(news.id));
+        setLikesCount(getArticleLikesCount(news));
+      }
+    };
+    window.addEventListener('campusai_bookmarks_updated', handleBookmarksUpdated);
+    window.addEventListener('campusai_likes_updated', handleLikesUpdated);
+    return () => {
+      window.removeEventListener('campusai_bookmarks_updated', handleBookmarksUpdated);
+      window.removeEventListener('campusai_likes_updated', handleLikesUpdated);
+    };
+  }, [news]);
+
+  // ── Bookmark toggle ───────────────────────────────────────────────────────
+  const handleToggleBookmark = useCallback(() => {
+    if (!news) return;
+    const newBookmarked = toggleBookmarkArticle(news);
+    setIsBookmarked(newBookmarked);
+  }, [news]);
+
+  const handleToggleRelatedBookmark = useCallback((id: string) => {
+    const target = localRelatedNews.find(n => n.id === id) || (news && news.id === id ? news : null);
+    if (target) {
+      toggleBookmarkArticle(target);
+      setBookmarksList(readBookmarkIds());
+    }
+  }, [localRelatedNews, news]);
+
+  const handleToggleLike = useCallback(() => {
+    if (!news) return;
+    const res = toggleArticleLike(news);
+    setIsLiked(res.isLiked);
+    setLikesCount(res.newCount);
+  }, [news]);
+
+  const handleDiscussWithAI = useCallback(() => {
+    if (!news) return;
+    window.dispatchEvent(new CustomEvent('campusai_open_ai', {
+      detail: `Hello CampusAI, I have a question about this article: "${news.title}". Can you give me a key summary and candidate checklist?`
+    }));
+  }, [news]);
+
+  // ── AI article expansion ──────────────────────────────────────────────────
+  const handleExpandArticle = useCallback(async () => {
+    if (!news || isExpanding) return;
+    setIsExpanding(true);
+    setExpansionError(null);
+    try {
+      let expanded: string | null = null;
+      try {
+        console.log("Attempting server-side article enhancement...");
+        expanded = await enhanceNewsArticleContent(news.id);
+      } catch (backendError) {
+        console.warn("Server-side enhancement failed, falling back to client-side:", backendError);
+        expanded = await expandNewsArticle(news);
+      }
+
+      if (expanded) {
+        setNews({ ...news, fullContent: expanded });
+        setEditableContent(expanded);
+        window.dispatchEvent(new Event('campusai_news_updated'));
+        alert("✅ Article enhanced and saved successfully.");
+      } else {
+        setExpansionError("Unable to expand the article. The news service might be facing high traffic.");
+      }
+    } catch (e: any) {
+      const isQuota = e?.message?.toLowerCase().match(/quota|429|limit|exhausted/) || e?.status === 'RESOURCE_EXHAUSTED';
+      setExpansionError(isQuota
+        ? "Our AI News Sync engine is currently at maximum capacity (Google Gemini rate limit)."
+        : "Expansion failed due to network limits. Please try again later."
+      );
+    } finally {
+      setIsExpanding(false);
+    }
+  }, [news, isExpanding]);
+
+  // ── Share & Copy Link ──────────────────────────────────────────────────────
+  const handleCopyLink = useCallback(async () => {
+    try {
+      const shareUrl = window.location.href;
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = shareUrl;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      if (news?.id) {
+        incrementAndGetArticleShares(news.id, news.shares).then(shares => setShareCount(shares));
+      }
+      setCopiedLink(true);
+      setShowShareSuccess(true);
+      setTimeout(() => {
+        setCopiedLink(false);
+        setShowShareSuccess(false);
+      }, 2500);
+    } catch (err) {
+      console.error('Copy link error:', err);
+    }
+  }, [news?.id, news?.shares]);
+
+  const handleShare = useCallback(async () => {
+    if (!news) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: news.title, text: news.excerpt, url: window.location.href });
+      } else {
+        await handleCopyLink();
+      }
+    } catch (err) {
+      console.error('Share error:', err);
+    }
+  }, [news, handleCopyLink]);
+
+  // ── Comment submit ────────────────────────────────────────────────────────
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) { onLoginRequest(); return; }
+    if (!commentText.trim() || isSubmitting || !news) return;
+
+    setIsSubmitting(true);
+    try {
+      const newComment = await postNewsComment({
+        newsId: news.id,
+        uid: user.uid,
+        displayName: user.displayName || 'Scholar',
+        photoURL: user.photoURL,
+        text: commentText.trim(),
+      });
+      if (newComment) {
+        setComments(prev => [newComment, ...prev]);
+        setCommentText('');
+      } else {
+        alert("Failed to sync comment with cloud database.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ── Comment delete ────────────────────────────────────────────────────────
+  const handleDeleteComment = async (commentId: string) => {
+    if (!window.confirm("Permanently delete this comment?")) return;
+    const success = await deleteNewsComment(commentId);
+    if (success) setComments(prev => prev.filter(c => c.id !== commentId));
+  };
+
+  // ── Loading / not found states ────────────────────────────────────────────
+  if (isLoadingNews) {
+    return (
+      <div className="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen w-full flex flex-col items-center justify-center space-y-4 p-6">
+        <Loader2 size={48} className="animate-spin text-blue-600" />
+        <p className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-slate-300">Decrypting Intelligence...</p>
+      </div>
+    );
+  }
+
+  if (!news) {
+    return (
+      <div className="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen w-full flex flex-col items-center justify-center space-y-6 p-6">
+        <div className="w-20 h-20 bg-gray-100 dark:bg-gray-900 rounded-[32px] flex items-center justify-center text-gray-400">
+          <ShieldCheck size={40} />
+        </div>
+        <div className="text-center max-w-lg">
+          <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight mb-2">Intelligence Not Found</h2>
+          <p className="text-gray-500 dark:text-slate-300 font-bold">The requested report does not exist or has been archived.</p>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2 uppercase font-black tracking-widest">Slug: {slug}</p>
+        </div>
+
+        {restoreError && (
+          <div className="max-w-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 p-4 rounded-xl text-center">
+            <p className="text-xs text-red-600 dark:text-red-400 font-bold">⚠️ {restoreError}</p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-4 justify-center">
+          <button onClick={() => navigate('/')} className="px-8 py-4 bg-gray-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">
+            Return to Feed
+          </button>
+          <button 
+            onClick={handleRetrySync} 
+            className="px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-700 transition-all"
+          >
+            <RefreshCw size={14} /> 
+            Retry Sync
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const sanitizeMarkdown = (raw: string): string => {
+    if (!raw) return '';
+    let text = raw.trim();
+    if (text.startsWith('```markdown')) {
+      text = text.replace(/^```markdown\s*/i, '');
+    } else if (text.startsWith('```')) {
+      text = text.replace(/^```\s*/, '');
+    }
+    if (text.endsWith('```')) {
+      text = text.replace(/\s*```$/, '');
+    }
+    text = text.replace(/\\(\*\*|\*|#|`|_)/g, '$1');
+
+    // Strip dangerous tags, inline scripts, event handlers, and javascript URIs
+    text = text
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+      .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
+      .replace(/<link\b[^>]*>/gi, '')
+      .replace(/<meta\b[^>]*>/gi, '')
+      .replace(/\bon\w+\s*=\s*(['"]).*?\1/gi, '')
+      .replace(/href\s*=\s*(['"])javascript:.*?\1/gi, 'href="#"');
+
+    // Auto-link official government & university portals mentioned in text without markdown link syntax
+    text = text.replace(/(^|[\s(])([a-zA-Z0-9-]+\.(?:gov\.ng|edu\.ng|org\.ng|net\.ng|com\.ng)(?:\/[^\s\)\],]*)?)(?=$|[\s),.])/gi, (match, prefix, domain) => {
+      return `${prefix}[${domain}](https://${domain})`;
+    });
+
+    return text.trim();
+  };
+
+  const contentForTime = news.fullContent || (news as any).content || (news as any).content || news.excerpt || "";
+  const readTime = Math.max(3, Math.ceil(contentForTime.split(' ').length / 200));
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
+      className="bg-white dark:bg-gray-950 min-h-screen w-full overflow-x-hidden"
+    >
+      <SEO 
+        title={news.title} 
+        description={news.excerpt} 
+        image={news.image || (Array.isArray(news.images) && news.images.length > 0 ? news.images[0] : undefined)}
+        article={true} 
+        author={news.author || "Emmanuel Iweh"}
+        publishedTime={news.date}
+        modifiedTime={(news as any).updatedAt || news.date}
+        section={news.category || "JAMB News"}
+        canonical={`/news/${news.slug || news.id}`}
+        originalSource={news.sourceUrl || "https://jamb.gov.ng"}
+      />
+
+      <div className="max-w-4xl mx-auto px-6 md:px-0">
+
+        {/* Structured Breadcrumbs */}
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 pt-6 pb-2 flex-wrap font-medium">
+          <button 
+            onClick={() => { onClose(); navigate('/'); }}
+            className="hover:text-blue-600 dark:hover:text-cyan-400 font-bold transition-colors cursor-pointer"
+          >
+            Home
+          </button>
+          <ChevronRight size={12} className="text-slate-400 shrink-0" />
+          <button 
+            onClick={() => { onClose(); navigate('/news'); }}
+            className="hover:text-blue-600 dark:hover:text-cyan-400 font-bold transition-colors cursor-pointer"
+          >
+            Intelligence Feed
+          </button>
+          <ChevronRight size={12} className="text-slate-400 shrink-0" />
+          <span className="text-blue-600 dark:text-cyan-400 font-bold truncate max-w-[140px]">
+            {news.category}
+          </span>
+          <ChevronRight size={12} className="text-slate-400 shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300 font-semibold truncate max-w-[200px]" title={news.title}>
+            {news.title}
+          </span>
+        </nav>
+
+        {/* Back button */}
+        <button
+          onClick={onClose}
+          className="flex items-center gap-2 mb-8 py-3 text-blue-600 font-black uppercase text-[10px] tracking-widest hover:translate-x-[-4px] transition-transform cursor-pointer"
+        >
+          <ArrowLeft size={16} /> Return to Intelligence Feed
+        </button>
+
+        {/* Meta row */}
+        <div className="flex flex-wrap items-center gap-3 mb-8">
+          <span className="px-4 py-1.5 bg-blue-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest">{news.category}</span>
+          <div className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700" />
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+            <Clock size={12} /> {readTime} MIN READ
+          </span>
+          <div className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700" />
+          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 bg-emerald-500/10 px-3.5 py-1 rounded-full border border-emerald-500/20">
+            <Eye size={13} className="text-emerald-500" /> {readCount.toLocaleString()} READS
+          </span>
+          <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5 bg-blue-500/10 px-3.5 py-1 rounded-full border border-blue-500/20">
+            <Share2 size={13} className="text-blue-500" /> {shareCount.toLocaleString()} SHARES
+          </span>
+          {news.sourceUrl && (
+            <a href={news.sourceUrl} target="_blank" rel="noopener noreferrer"
+              className="ml-auto hover:underline text-blue-800 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest break-all">
+              Source
+            </a>
+          )}
+        </div>
+
+        <h1 className="text-3xl md:text-[34px] font-bold text-[#2a3c5a] dark:text-white mb-5 leading-[1.3] tracking-tight">
+          {news.title}
+        </h1>
+
+        {/* Social Share Row */}
+        <div className="flex items-center gap-3 mb-5 flex-wrap">
+          <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 flex items-center justify-center rounded-full bg-[#4267B2] text-white hover:opacity-80 transition-opacity" title="Share on Facebook">
+             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </a>
+          <a href={`fb-messenger://share?link=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 flex items-center justify-center rounded-full bg-[#00B2FF] text-white hover:opacity-80 transition-opacity" title="Share on Messenger">
+             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.018 0 11.205c0 3.523 1.764 6.643 4.498 8.706V24l4.1-2.256c1.077.295 2.22.457 3.402.457 6.627 0 12-5.018 12-11.205C24 5.018 18.627 0 12 0zm1.22 14.887l-3.136-3.344-6.136 3.344 6.726-7.142 3.195 3.342 6.074-3.342-6.723 7.142z"/></svg>
+          </a>
+          <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(news.title)}&url=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 flex items-center justify-center rounded-md bg-black text-white hover:opacity-80 transition-opacity" title="Share on X">
+             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
+          </a>
+          <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(news.title + " " + window.location.href)}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 flex items-center justify-center rounded-full bg-[#25D366] text-white hover:opacity-80 transition-opacity" title="Share on WhatsApp">
+             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          </a>
+          <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 flex items-center justify-center rounded-full bg-[#0077B5] text-white hover:opacity-80 transition-opacity" title="Share on LinkedIn">
+             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </a>
+          <a href={`https://reddit.com/submit?url=${encodeURIComponent(window.location.href)}&title=${encodeURIComponent(news.title)}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 flex items-center justify-center rounded-full bg-[#FF4500] text-white hover:opacity-80 transition-opacity" title="Share on Reddit">
+             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 11.779c0-1.459-1.192-2.645-2.657-2.645-.715 0-1.363.275-1.866.729-1.424-1.012-3.372-1.644-5.532-1.73l1.18-5.524 3.791.803c.032 1.053.901 1.899 1.968 1.899 1.085 0 1.968-.876 1.968-1.956 0-1.077-.883-1.954-1.968-1.954-.852 0-1.58.541-1.852 1.306l-4.22-.897a.475.475 0 0 0-.547.369l-1.31 6.136c-2.228.06-4.246.687-5.711 1.714-.505-.461-1.164-.741-1.888-.741-1.464 0-2.656 1.186-2.656 2.645 0 .963.53 1.8 1.308 2.275-.021.206-.036.417-.036.634 0 3.844 4.542 6.969 10.134 6.969s10.134-3.125 10.134-6.969c0-.214-.015-.422-.034-.627.766-.481 1.288-1.311 1.288-2.268zm-16.745 2.115c0-.853.696-1.545 1.554-1.545.857 0 1.554.692 1.554 1.545 0 .851-.697 1.544-1.554 1.544-.858 0-1.554-.693-1.554-1.544zm9.356 5.163c-1.284 1.28-3.415 1.285-4.526 1.285-1.111 0-3.246-.005-4.53-1.285a.473.473 0 0 1 .669-.667c.883.882 2.628 1.002 3.861 1.002 1.231 0 2.978-.12 3.86-.998a.471.471 0 1 1 .666.663zm-.407-3.619c-.858 0-1.554-.693-1.554-1.544 0-.853.696-1.545 1.554-1.545.856 0 1.553.692 1.553 1.545 0 .851-.697 1.544-1.553 1.544z"/></svg>
+          </a>
+
+          {/* Copy Link Button */}
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className={`h-9 px-3.5 flex items-center gap-2 rounded-full font-black text-[11px] uppercase tracking-wider transition-all shadow-sm ${
+              copiedLink
+                ? 'bg-emerald-600 text-white shadow-emerald-500/30'
+                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700'
+            }`}
+            title="Copy Article Link"
+          >
+            {copiedLink ? (
+              <>
+                <CheckCircle2 size={15} className="text-white" />
+                <span>Link Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy size={14} />
+                <span>Copy Link</span>
+              </>
+            )}
+          </button>
+
+          <div className="flex items-center gap-1.5 ml-2 cursor-pointer" onClick={() => document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth' })}>
+            <MessageSquare size={20} className="text-gray-900 dark:text-gray-300" />
+            <span className="text-sm font-bold text-gray-900 dark:text-gray-300">{comments.length}</span>
+          </div>
+        </div>
+
+        {/* Author / actions row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-8 mb-12 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold text-gray-600 dark:text-slate-300">
+             <Clock size={14} className="shrink-0 text-blue-500" />
+             <span>Published <strong className="text-gray-900 dark:text-white font-bold">{formatNewsPostTime(news).dateTimeStr}</strong> <span className="inline-flex items-center px-2 py-0.5 ml-1 rounded-full text-[11px] font-extrabold bg-blue-500/10 text-blue-600 dark:text-cyan-400 border border-blue-500/20">{formatNewsPostTime(news).timeAgo}</span></span>
+             <span className="mx-1">•</span>
+             <User size={14} className="shrink-0" />
+             <span>By <span className="text-[#0eb38c] font-bold">Emmanuel Iweh</span></span>
+             <span className="mx-1">•</span>
+             <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+               <Eye size={14} className="shrink-0" />
+               <span>{readCount.toLocaleString()} times read</span>
+             </span>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleCopyLink}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                copiedLink
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title="Copy Link"
+            >
+              {copiedLink ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+              <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+            </button>
+            <button
+              onClick={handleToggleLike}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border active:scale-95 cursor-pointer ${
+                isLiked 
+                  ? 'bg-blue-500/10 text-blue-600 dark:text-cyan-400 border-blue-500/30' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title={isLiked ? "Unlike article" : "Like article"}
+            >
+              <ThumbsUp size={14} fill={isLiked ? "currentColor" : "none"} />
+              <span>{likesCount} {likesCount === 1 ? 'Like' : 'Likes'}</span>
+            </button>
+            <button
+              onClick={handleToggleBookmark}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border active:scale-95 cursor-pointer ${
+                isBookmarked 
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title={isBookmarked ? "Remove Bookmark" : "Bookmark Article"}
+            >
+              <Bookmark size={14} fill={isBookmarked ? "currentColor" : "none"} />
+              <span>{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Intelligence Actions */}
+        <div className={`mb-10 p-6 rounded-[40px] border flex flex-col md:flex-row items-center justify-between gap-4 ${isAdmin ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white ${isAdmin ? 'bg-amber-500' : 'bg-blue-500'}`}>
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h4 className={`text-sm font-black uppercase tracking-widest ${isAdmin ? 'text-amber-900 dark:text-amber-300' : 'text-blue-900 dark:text-blue-300'}`}>
+                {isAdmin ? 'Admin Intelligence' : 'AI Assistant'}
+              </h4>
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${isAdmin ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                {isAdmin ? (isEditing ? "Manual Editing Active" : "Manage content with AI or edit manually.") : "Get a deeper summary and candidate checklist."}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin ? (
+              !isEditing ? (
+                <>
+                  <button
+                    onClick={handleCleanRubbish}
+                    disabled={isCleaning}
+                    className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isCleaning ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                    {isCleaning ? "Scrubbing..." : "Scrub Rubbish"}
+                  </button>
+                  <button
+                    onClick={handleExpandArticle}
+                    disabled={isExpanding}
+                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isExpanding ? <Loader2 className="animate-spin" size={14} /> : <Zap size={14} />}
+                    {isExpanding ? "Expanding..." : "Enhance Article"}
+                  </button>
+                  <button
+                    onClick={startEditing}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                  >
+                    <Edit3 size={14} />
+                    Edit Manually
+                  </button>
+                  <button
+                    onClick={handleDeleteArticle}
+                    className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+                  >
+                    <Trash2 size={14} />
+                    Delete Article
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleManualSave}
+                    disabled={isCleaning}
+                    className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isCleaning ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+                    {isCleaning ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )
+            ) : (
+              <button
+                onClick={handleDiscussWithAI}
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Sparkles size={14} />
+                Discuss with AI
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Article body */}
+        <article className="prose prose-xl max-w-full overflow-hidden dark:prose-invert break-words">
+          {/* Main Featured Picture Hero */}
+          {allPictures.length > 0 && !isEditing && (
+            <div className="mb-8 group relative rounded-[32px] overflow-hidden bg-gray-950 shadow-xl border border-gray-200/60 dark:border-gray-800">
+              <img 
+                src={allPictures[0]} 
+                alt=""
+                aria-hidden="true"
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35 select-none pointer-events-none" 
+              />
+              <img 
+                src={allPictures[0]} 
+                alt=""
+                aria-hidden="true"
+                onClick={() => setLightboxIndex(0)}
+                referrerPolicy="no-referrer"
+                className="relative z-10 w-full max-h-[600px] object-contain object-top mx-auto cursor-zoom-in group-hover:scale-102 transition-transform duration-500"
+              />
+              <div className="absolute bottom-4 right-4 z-20 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[10px] font-black text-white flex items-center gap-1.5 shadow-lg border border-white/20">
+                <Maximize2 size={12} /> Click to Enlarge
+              </div>
+            </div>
+          )}
+
+          {/* Multi-Photo Gallery Grid */}
+          {allPictures.length > 1 && !isEditing && (
+            <div className="mb-10 p-6 bg-gray-50 dark:bg-gray-900/50 rounded-[32px] border border-gray-200/60 dark:border-gray-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                  <ImageIcon size={14} className="text-blue-600" /> Article Photo Gallery ({allPictures.length} Photos)
+                </h3>
+                <span className="text-[10px] font-bold text-gray-400">Click photo to view in HD</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {allPictures.map((img, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => setLightboxIndex(idx)}
+                    className="relative aspect-video rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 cursor-pointer group shadow-sm border border-gray-200/50 dark:border-gray-700/50 hover:border-blue-500 transition-all"
+                  >
+                    <img src={img} alt={`Gallery ${idx + 1}`} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                      <Maximize2 size={16} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {news.excerpt && !isEditing && (
+            <p className="text-xl md:text-2xl text-gray-900 dark:text-white leading-relaxed font-black mb-10 italic border-l-4 border-blue-600 pl-6 py-2">
+              "{news.excerpt}"
+            </p>
+          )}
+
+          {expansionError && !isEditing && (
+            <div className="mb-8 p-5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-3xl text-sm space-y-2 font-bold leading-relaxed shadow-lg">
+              <p className="flex items-center gap-2">⚠️ {expansionError}</p>
+              <p className="text-[11px] text-gray-500 dark:text-slate-300 uppercase tracking-widest leading-normal">
+                Displaying offline news archives. Core calculation logic is 100% functional.
+              </p>
+            </div>
+          )}
+
+          {!(news.fullContent || (news as any).content) && !isExpanding && !isEditing && (
+            <div className="mb-10 p-6 bg-blue-50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-800 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest mb-1">
+                  {isAdmin ? "Deep Dive Available" : "Ask CampusAI"}
+                </h4>
+                <p className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                  {isAdmin
+                    ? "Our AI can rewrite this summary into a detailed, comprehensive article for you."
+                    : "Have questions about this briefing? Discuss it directly with CampusAI Assistant."}
+                </p>
+              </div>
+              {isAdmin ? (
+                <button
+                  onClick={handleExpandArticle}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                >
+                  <Wand2 size={14} /> Expand with AI
+                </button>
+              ) : (
+                <button
+                  onClick={handleDiscussWithAI}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                >
+                  <Sparkles size={14} /> Discuss with AI
+                </button>
+              )}
+            </div>
+          )}
+
+          {isExpanding && (
+            <div className="mb-10 p-8 bg-gray-50 dark:bg-gray-900 rounded-[40px] border border-dashed border-gray-200 dark:border-gray-800 flex flex-col items-center justify-center text-center space-y-4">
+              <Loader2 size={32} className="animate-spin text-blue-600" />
+              <div>
+                <h4 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest">Generating High-Quality Article...</h4>
+                <p className="text-xs font-bold text-gray-500">Connecting to JAMB Strategist Intelligence Core...</p>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-10">
+            <AdUnit type="leaderboard" placement="native" />
+          </div>
+
+          <div className="markdown-body text-lg text-gray-800 dark:text-gray-200 leading-relaxed font-medium select-text pointer-events-auto">
+            {isEditing ? (
+              <div className="space-y-6 not-prose bg-gray-50 dark:bg-gray-900/60 p-6 md:p-8 rounded-[36px] border-2 border-blue-200 dark:border-blue-900/60 shadow-xl">
+                <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
+                      <Edit3 size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">Article Live Editor</h3>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Update headline, category, excerpt, and content</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleManualSave}
+                      disabled={isCleaning}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                    >
+                      {isCleaning ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+                      <span>Save Changes</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="px-4 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+                {/* Headline / Title */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Headline (Article Title)
+                  </label>
+                  <input
+                    type="text"
+                    value={editableTitle}
+                    onChange={(e) => setEditableTitle(e.target.value)}
+                    placeholder="Enter article headline..."
+                    className="w-full px-5 py-3.5 bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl text-base font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                  />
+                </div>
+
+                {/* Category & Date Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                      Category
+                    </label>
+                    <select
+                      value={editableCategory}
+                      onChange={(e) => setEditableCategory(e.target.value)}
+                      className="w-full px-4 py-3 bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {['National', 'State', 'Federal', 'Private', 'JAMB', 'Scholarships', 'Jobs', 'Polytechnic', 'COE', 'NYSC', 'WAEC', 'NECO'].map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                      Publication Date
+                    </label>
+                    <input
+                      type="text"
+                      value={editableDate}
+                      onChange={(e) => setEditableDate(e.target.value)}
+                      placeholder="e.g. September 27, 2026"
+                      className="w-full px-4 py-3 bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Excerpt / Summary */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Card Summary (Excerpt)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editableExcerpt}
+                    onChange={(e) => setEditableExcerpt(e.target.value)}
+                    placeholder="Brief 2-sentence summary for search engines and social cards..."
+                    className="w-full px-4 py-3 bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
+                  />
+                </div>
+
+                {/* Source URL */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Official Source URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={editableSourceUrl}
+                    onChange={(e) => setEditableSourceUrl(e.target.value)}
+                    placeholder="https://portal.institution.edu.ng/..."
+                    className="w-full px-4 py-3 bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+
+                {/* Images Uploader */}
+                <ArticleImagesUploader
+                  images={editableImages}
+                  featuredImage={editableFeaturedImage}
+                  onChangeImages={(imgs, feat) => {
+                    setEditableImages(imgs);
+                    setEditableFeaturedImage(feat);
+                  }}
+                  onInsertMarkdown={(imgUrl) => {
+                    setEditableContent(prev => prev + `\n\n![Article Photo](${imgUrl})\n\n`);
+                  }}
+                />
+
+                {/* Social Media Link Preview Card (WhatsApp / Facebook / Twitter Diagnostic) */}
+                <div className="p-5 bg-blue-50/60 dark:bg-blue-950/30 rounded-3xl border border-blue-200 dark:border-blue-800/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                      <Share2 size={13} /> WhatsApp / Facebook Link Preview Card
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400">
+                      Auto-generated 1200×630 OpenGraph
+                    </span>
+                  </div>
+
+                  {/* WhatsApp/Facebook Card Preview */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md max-w-md">
+                    <div className="aspect-[1.91/1] bg-gray-950 relative overflow-hidden flex items-center justify-center">
+                      {editableFeaturedImage || editableImages[0] ? (
+                        <img 
+                          src={editableFeaturedImage || editableImages[0]} 
+                          alt="Link preview" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-center p-4">
+                          <span className="text-xs font-black text-blue-400">CampusAI.ng Dynamic Banner</span>
+                          <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{editableTitle || news.title}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-900/90 border-t border-gray-100 dark:border-gray-800">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">CAMPUSAI.COM.NG</p>
+                      <h4 className="text-xs font-black text-gray-900 dark:text-white line-clamp-1 mt-0.5">
+                        {editableTitle || news.title}
+                      </h4>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
+                        {editableExcerpt || news.excerpt || "Verified Nigerian admissions updates, cut-off marks, and Post-UTME alerts."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/admin/clear-seo-cache', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug: news.slug || news.id })
+                          });
+                          alert("✅ Link preview cache purged successfully! If sharing on Facebook, you can also click 'Refresh on Facebook Debugger'.");
+                        } catch {
+                          alert("Preview cache refreshed.");
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                    >
+                      ⚡ Force Refresh Preview Cache
+                    </button>
+
+                    <a
+                      href={`https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(window.location.origin + '/news/' + (news.slug || news.id))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1"
+                    >
+                      <span>Facebook Scraper Debugger ↗</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Markdown Editor */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                      Full Article Body (Markdown)
+                    </label>
+                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                      Supports ## Headings, Tables, Lists, and Bold Text
+                    </span>
+                  </div>
+                  <textarea
+                    value={editableContent}
+                    onChange={(e) => setEditableContent(e.target.value)}
+                    className="w-full h-[520px] p-6 bg-white dark:bg-gray-950 rounded-[28px] border-2 border-gray-200 dark:border-gray-800 outline-none focus:border-blue-600 transition-all font-mono text-sm leading-relaxed resize-none shadow-inner text-gray-900 dark:text-gray-100"
+                    placeholder="Paste or write the article content here in Markdown format..."
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditableContent(sanitizeArticleContent(editableContent));
+                    }}
+                    className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1.5"
+                  >
+                    <Sparkles size={14} /> Quick-Sanitize Rubbish
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-2xl font-black text-xs uppercase tracking-wider"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleManualSave}
+                      disabled={isCleaning}
+                      className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                    >
+                      {isCleaning ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+                      <span>Save & Publish Changes</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : news.fullContent || (news as any).content ? (
+              <Markdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ children }) => <ResponsiveMarkdownTable>{children}</ResponsiveMarkdownTable>,
+                  thead: ({ children }) => <TableHead>{children}</TableHead>,
+                  tbody: ({ children }) => <TableBody>{children}</TableBody>,
+                  tr: ({ children }) => <TableRow>{children}</TableRow>,
+                  th: ({ children }) => <TableHeaderCell>{children}</TableHeaderCell>,
+                  td: ({ children }) => <TableCell>{children}</TableCell>,
+                  blockquote: ({ children }) => (
+                    <blockquote className="my-6 border-l-4 border-blue-600 dark:border-cyan-500 bg-blue-50/50 dark:bg-slate-900/80 p-5 rounded-r-3xl not-prose text-slate-800 dark:text-slate-200 shadow-sm border border-blue-100 dark:border-slate-800">
+                      {children}
+                    </blockquote>
+                  ),
+                  ol: ({ children }) => (
+                    <ol className="my-5 space-y-3 list-decimal list-outside ml-6 text-gray-800 dark:text-gray-200 font-medium">
+                      {children}
+                    </ol>
+                  ),
+                  ul: ({ children }) => (
+                    <ul className="my-5 space-y-2.5 list-disc list-outside ml-6 text-gray-800 dark:text-gray-200 font-medium">
+                      {children}
+                    </ul>
+                  ),
+                  li: ({ children }) => (
+                    <li className="leading-relaxed pl-1">
+                      {children}
+                    </li>
+                  ),
+                  hr: () => (
+                    <hr className="my-8 border-0 h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent" />
+                  ),
+                  img: ({ node, src, alt, ...props }) => (src && typeof src === 'string' && src.trim() ? <img {...props} src={src.trim()} alt={alt || ""} referrerPolicy="no-referrer" /> : null),
+                  h3: ({ node, children, ...props }) => {
+                    const text = String(children || '');
+                    if (text.toUpperCase().includes('DOWNLOAD THE OFFICIAL') && text.toUpperCase().includes('(PDF)')) {
+                      return (
+                        <div className="pb-2 mb-3 mt-6 border-b-2 border-blue-600 dark:border-blue-500 not-prose">
+                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                            <span>📥</span>
+                            <span>{text.replace(/^📥\s*/, '')}</span>
+                          </h3>
+                        </div>
+                      );
+                    }
+                    return <h3 className="text-xl font-bold mt-6 mb-3 text-gray-900 dark:text-white">{children}</h3>;
+                  },
+                  p: ({ node, children, ...props }) => {
+                    const text = String(children || '');
+                    if (text.trim().startsWith('Note:') || text.trim().startsWith('📌 Note:') || text.trim().startsWith('*Note:*')) {
+                      return (
+                        <div className="my-4 border-l-4 border-blue-600 dark:border-blue-500 bg-blue-50/60 dark:bg-blue-950/30 px-4 py-3.5 rounded-r-xl not-prose">
+                          <p className="text-sm sm:text-base text-gray-800 dark:text-gray-200 leading-relaxed italic">
+                            <strong className="font-bold not-italic text-gray-900 dark:text-white mr-1.5">📌 Note:</strong>
+                            {text.replace(/^(📌\s*)?\*?Note:\*?\s*/i, '')}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="mb-6 leading-relaxed font-normal text-gray-800 dark:text-gray-200">{children}</div>
+                    );
+                  },
+                  a: ({ node, children, href, ...props }) => {
+                    const cleanHref = href || '';
+                    const text = (Array.isArray(children) ? children.join(' ') : String(children || '')).trim();
+
+                    // Check if this is an official PDF or downloadable document link
+                    const isPdfLink =
+                      cleanHref.match(/\.pdf(\?.*)?$/i) ||
+                      cleanHref.includes('/api/pdf-store/file/') ||
+                      cleanHref.includes('/api/pdf/proxy-download') ||
+                      text.toLowerCase().includes('(pdf)') ||
+                      (text.toLowerCase().includes('download') && cleanHref.toLowerCase().includes('pdf'));
+
+                    if (isPdfLink) {
+                      return (
+                        <OfficialPdfDownloadCard
+                          url={cleanHref}
+                          title={text}
+                        />
+                      );
+                    }
+
+                    // 1. YouTube Video & Shorts
+                    const ytMatch = cleanHref.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+                    if (ytMatch && ytMatch[1]) {
+                      const videoId = ytMatch[1];
+                      return (
+                        <div className="my-8 relative w-full overflow-hidden rounded-3xl bg-gray-900 border border-gray-800 shadow-2xl" style={{ paddingTop: '56.25%' }}>
+                          <iframe 
+                            className="absolute top-0 left-0 w-full h-full" 
+                            src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0`} 
+                            title="YouTube video player"
+                            frameBorder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            allowFullScreen 
+                          />
+                        </div>
+                      );
+                    }
+
+                    // 2. X (Twitter) Video / Status Link
+                    const xMatch = cleanHref.match(/(?:twitter\.com|x\.com)\/(?:[a-zA-Z0-9_]+\/status\/|i\/status\/)(\d+)/i);
+                    if (xMatch && xMatch[1]) {
+                      return <XVideoEmbed tweetId={xMatch[1]} cleanHref={cleanHref} />;
+                    }
+
+                    // 3. Direct Video Files (.mp4, .webm, .ogg, .mov, .m3u8)
+                    if (cleanHref.match(/\.(mp4|webm|ogg|mov|m3u8)(\?.*)?$/i)) {
+                      return (
+                        <div className="my-8 rounded-[28px] overflow-hidden bg-black shadow-2xl border border-gray-800">
+                          <div className="px-5 py-3 bg-gray-900 border-b border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-300 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span>🎬 Interactive Video Stream</span>
+                          </div>
+                          <video 
+                            controls 
+                            preload="metadata"
+                            className="w-full max-h-[500px] object-contain bg-black"
+                            src={cleanHref}
+                          >
+                            Your browser does not support HTML video playback.
+                          </video>
+                        </div>
+                      );
+                    }
+
+                    // 4. TikTok Video
+                    const tiktokMatch = cleanHref.match(/(?:tiktok\.com)\/@[^\/]+\/video\/(\d+)/i);
+                    if (tiktokMatch && tiktokMatch[1]) {
+                      const tiktokId = tiktokMatch[1];
+                      return (
+                        <div className="my-8 flex justify-center">
+                          <iframe
+                            src={`https://www.tiktok.com/embed/v2/${tiktokId}`}
+                            title="TikTok Video"
+                            className="w-full max-w-[340px] h-[600px] rounded-3xl border-0 shadow-2xl"
+                            allowFullScreen
+                          />
+                        </div>
+                      );
+                    }
+
+                    // 5. Facebook Video
+                    if (cleanHref.match(/facebook\.com\/.*\/videos\/\d+/i) || cleanHref.match(/fb\.watch\/.+/i)) {
+                      return (
+                        <div className="my-8 relative w-full overflow-hidden rounded-3xl bg-gray-900 border border-gray-800 shadow-xl" style={{ paddingTop: '56.25%' }}>
+                          <iframe 
+                            className="absolute top-0 left-0 w-full h-full" 
+                            src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(cleanHref)}&show_text=false`} 
+                            title="Facebook video player"
+                            frameBorder="0" 
+                            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" 
+                            allowFullScreen 
+                          />
+                        </div>
+                      );
+                    }
+
+                    // Standard or Institutional Portal Link
+                    let finalHref = cleanHref;
+                    if (finalHref && !finalHref.startsWith('http://') && !finalHref.startsWith('https://') && !finalHref.startsWith('mailto:') && !finalHref.startsWith('tel:') && !finalHref.startsWith('#')) {
+                      finalHref = 'https://' + finalHref;
+                    }
+
+                    // Check if URL is an official university/institution or scholarship portal
+                    let isOfficialPortal = false;
+                    let hostName = '';
+                    try {
+                      const urlObj = new URL(finalHref);
+                      hostName = urlObj.hostname.toLowerCase();
+                      isOfficialPortal = 
+                        hostName.endsWith('.gov.ng') ||
+                        hostName.endsWith('.edu.ng') ||
+                        hostName.includes('jamb.gov.ng') ||
+                        hostName.includes('waecdirect.org') ||
+                        hostName.includes('mynecoexams.com') ||
+                        hostName.includes('fsb.gov.ng') ||
+                        hostName.includes('scholarship.education.gov.ng') ||
+                        text.toLowerCase().includes('official portal') ||
+                        text.toLowerCase().includes('application portal') ||
+                        text.toLowerCase().includes('admission portal');
+                    } catch (_) {}
+
+                    if (isOfficialPortal) {
+                      const isCalculatorMatch = 
+                        news.title.toUpperCase().includes('CUT') || 
+                        news.title.toUpperCase().includes('AGGREGATE') || 
+                        news.title.toUpperCase().includes('POST-UTME') ||
+                        news.title.toUpperCase().includes('UNILAG') ||
+                        news.title.toUpperCase().includes('LASU') ||
+                        news.title.toUpperCase().includes('OAU') ||
+                        news.title.toUpperCase().includes('UI ') ||
+                        news.title.toUpperCase().includes('FUTA');
+
+                      return (
+                        <div className="my-5 p-4 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900/90 dark:via-slate-800/90 dark:to-slate-900/90 border-2 border-blue-200 dark:border-blue-800 shadow-md not-prose flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 text-[10px] font-black uppercase tracking-wider">
+                                <ShieldCheck size={11} /> Verified Portal
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                                {hostName}
+                              </span>
+                            </div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {text || 'Official Application & Admission Portal'}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap shrink-0">
+                            <a
+                              href={finalHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => {
+                                trackOfficialPortalClick({
+                                  url: finalHref,
+                                  domain: hostName,
+                                  sourceArticleId: news.id,
+                                  label: 'article_inline_portal'
+                                });
+                              }}
+                              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                            >
+                              <span>Open official portal</span>
+                              <ExternalLink size={13} />
+                            </a>
+
+                            {isCalculatorMatch && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  trackCalculatorOpen({ source: 'article_portal_companion' });
+                                  onClose();
+                                  navigate('/calculator');
+                                }}
+                                className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                              >
+                                <Calculator size={13} className="text-blue-500" />
+                                <span>Calculate Aggregate</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <a 
+                        {...props} 
+                        href={finalHref} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (finalHref.startsWith('http')) {
+                            trackOfficialPortalClick({
+                              url: finalHref,
+                              sourceArticleId: news.id,
+                              label: 'article_external_link'
+                            });
+                          }
+                        }}
+                        className="text-blue-600 dark:text-blue-400 hover:underline hover:text-blue-500 break-words font-semibold inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        {children}
+                        <ExternalLink size={12} className="inline shrink-0 opacity-70" />
+                      </a>
+                    );
+                  }
+                }}
+              >
+                {sanitizeMarkdown(news.fullContent || (news as any).content)}
+              </Markdown>
+            ) : (
+              <div className="py-12 border-2 border-dashed border-gray-100 dark:border-gray-900 rounded-[40px] text-center">
+                <p className="text-gray-500 font-bold italic">
+                  {isExpanding ? "Analyzing source data..." : "Detailed report is being synchronized. Standby for secondary analysis."}
+                </p>
+              </div>
+            )}
+          </div>
+        </article>
+
+        {/* Related links */}
+        {related.length > 0 && (
+          <div className="my-12">
+            <h4 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest mb-6">Article Resources:</h4>
+            <div className="flex flex-wrap gap-3">
+              {related.map((item, i) => (
+                <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                  className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">
+                  {item.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="my-12">
+          <AdUnit type="rectangle" placement="native" />
+        </div>
+
+        {/* Account Conversion / Admission Checklist Card */}
+        <div className="my-10 p-6 md:p-8 rounded-3xl bg-slate-900 border border-slate-800 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-2 text-center md:text-left">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-black uppercase tracking-wider">
+              <BookmarkCheck size={13} /> Admission Checklist
+            </div>
+            <h4 className="text-xl md:text-2xl font-black text-white">
+              Save this update & track key 2026 admission deadlines
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-400 max-w-lg">
+              Pin screening notices, departmental aggregate cutoffs, and post-UTME requirements directly to your free student workspace.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              trackArticleSignupClick({ article_id: news.id, placement: 'article_admission_checklist' });
+              if (!user) {
+                onLoginRequest();
+              } else {
+                handleToggleBookmark();
+              }
+            }}
+            className="w-full md:w-auto px-6 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+          >
+            <BookmarkCheck size={16} />
+            <span>Save to My Admission Checklist</span>
+          </button>
+        </div>
+
+        {/* Internal Admission Tools Grid */}
+        <div className="my-10">
+          <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+            <span>Essential Admission Tools</span>
+            <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              onClick={() => {
+                trackCalculatorOpen({ source: 'article_internal_tools' });
+                onClose();
+                navigate('/calculator');
+              }}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-left hover:border-blue-500 transition-all group cursor-pointer shadow-sm"
+            >
+              <Calculator className="text-blue-500 mb-2" size={20} />
+              <div className="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors">
+                Aggregate Calculator
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Calculate your Post-UTME composite score
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/cbt-simulator');
+              }}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-left hover:border-emerald-500 transition-all group cursor-pointer shadow-sm"
+            >
+              <Activity className="text-emerald-500 mb-2" size={20} />
+              <div className="text-xs font-black text-slate-900 dark:text-white group-hover:text-emerald-500 transition-colors">
+                JAMB CBT Simulator
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Practice official past questions with AI working
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/study-hub');
+              }}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-left hover:border-amber-500 transition-all group cursor-pointer shadow-sm"
+            >
+              <BookOpen className="text-amber-500 mb-2" size={20} />
+              <div className="text-xs font-black text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
+                Topic Revision Hub
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                High-yield summaries and syllabus formulas
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Aggregate Calculator CTA */}
+        <div className="my-16 p-8 bg-white dark:bg-gray-900 rounded-[40px] border-4 border-blue-600 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700" />
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+            <div className="space-y-4 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded-full text-[9px] font-black uppercase tracking-widest">
+                <ShieldCheck size={12} /> Next Step Recommendation
+              </div>
+              <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tight leading-none">
+                Calculate your <span className="text-blue-600">Admission Aggregate</span>
+              </h3>
+              <p className="text-sm font-bold text-gray-500 dark:text-slate-300 max-w-md">
+                Based on this {news.category} update, check if your scores are enough to secure your preferred course.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/calculator');
+              }}
+              className="px-8 py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/30 flex items-center gap-3 transition-all active:scale-95 group"
+            >
+              Start Calculation <ArrowLeft size={18} className="rotate-180 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        </div>
+
+        {/* Comments */}
+        <section className="py-20 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between mb-10">
+            <h3 className="text-2xl font-black flex items-center gap-3 dark:text-white uppercase tracking-tight">
+              <MessageSquare size={24} className="text-blue-600" /> Discussion Hub ({comments.length})
+            </h3>
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border border-emerald-100 dark:border-emerald-800">
+              Live Sync Active
+            </div>
+          </div>
+
+          <form onSubmit={handlePostComment} className="mb-16">
+            {!user ? (
+              <div onClick={onLoginRequest} className="p-8 bg-gray-50 dark:bg-gray-900 rounded-[32px] border border-dashed border-gray-200 dark:border-gray-800 text-center cursor-pointer group hover:border-blue-500 transition-all">
+                <LogIn className="mx-auto mb-4 text-gray-400 group-hover:text-blue-500 transition-colors" size={32} />
+                <p className="font-bold text-gray-600 dark:text-slate-300">Sign in to join the conversation</p>
+                <p className="text-[10px] font-black uppercase text-blue-600 mt-2 tracking-widest">Connect Scholar Profile</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative">
+                  <textarea
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    placeholder="Share your thoughts or ask a question..."
+                    className="w-full bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-blue-500 rounded-[32px] p-6 pr-16 outline-none font-bold dark:text-white min-h-[120px] transition-all resize-none shadow-inner"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!commentText.trim() || isSubmitting}
+                    className="absolute bottom-4 right-4 w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl active:scale-95 disabled:opacity-50 transition-all"
+                  >
+                    {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 px-4">
+                  <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-200">
+                    {(user.photoURL && user.photoURL.trim()) ? <img src={user.photoURL.trim()} className="w-full h-full object-cover" alt="" /> : null}
+                  </div>
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    Posting as {user.displayName || 'Scholar'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </form>
+
+          <div className="space-y-8">
+            {isLoadingComments ? (
+              <div className="py-10 flex justify-center">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+              </div>
+            ) : comments.length > 0 ? (
+              <AnimatePresence>
+                {comments.map((comment, idx) => (
+                  <motion.div
+                    key={comment.id}
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="flex gap-4 group"
+                  >
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+                      {(comment.photoURL && comment.photoURL.trim())
+                        ? <img src={comment.photoURL.trim()} className="w-full h-full object-cover" alt="" />
+                        : <User size={20} className="text-gray-400" />}
+                    </div>
+                    <div className="flex-grow">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-xs md:text-sm dark:text-white uppercase tracking-tight">{comment.displayName}</span>
+                          {comment.uid === '5ej852963@gmail.com' && <ShieldCheck size={14} className="text-blue-500" />}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[8px] font-bold text-gray-400 uppercase">
+                            {comment.createdAt?.toDate?.() ? new Date(comment.createdAt.toDate()).toLocaleDateString() : 'Just now'}
+                          </span>
+                          {user?.uid === comment.uid && (
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="p-1 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-4 md:p-5 bg-gray-50 dark:bg-gray-900 rounded-[24px] rounded-tl-none border border-gray-100 dark:border-gray-800 shadow-sm">
+                        <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed font-medium">{comment.text}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            ) : (
+              <div className="py-20 text-center space-y-4">
+                <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-3xl flex items-center justify-center mx-auto text-gray-300">
+                  <MessageSquare size={24} />
+                </div>
+                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No discussions yet</p>
+                <p className="text-xs text-gray-500">Be the first to share your intelligence on this update.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="pb-24 flex justify-center">
+          <button onClick={onClose} className="px-12 py-5 bg-gray-900 dark:bg-white text-white dark:text-black rounded-3xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">
+            Close Report
+          </button>
+        </div>
+        {/* Related News Section */}
+        {localRelatedNews && localRelatedNews.length > 0 && (
+          <div className="mt-20 pt-10 border-t border-gray-100 dark:border-gray-900">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-12 h-12 bg-gray-900 dark:bg-white rounded-2xl flex items-center justify-center text-white dark:text-black">
+                <RefreshCw size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Related Articles</h3>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">More news you might be interested in</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+              {localRelatedNews.slice(0, 3).map((item) => (
+                <NewsCard
+                  key={item.id}
+                  news={item}
+                  onRead={() => onSelectRelated(item)}
+                  isBookmarked={bookmarksList.includes(item.id)}
+                  onToggleBookmark={handleToggleRelatedBookmark}
+                  isAdmin={isAdmin}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox Modal for Enlarged Photo Viewing */}
+      {lightboxIndex !== null && allPictures[lightboxIndex] && (
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+          <button 
+            onClick={() => setLightboxIndex(null)}
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-50 cursor-pointer"
+            title="Close Lightbox"
+          >
+            <X size={24} />
+          </button>
+          
+          {allPictures.length > 1 && (
+            <>
+              <button 
+                onClick={() => setLightboxIndex((lightboxIndex - 1 + allPictures.length) % allPictures.length)}
+                className="absolute left-4 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-50 cursor-pointer"
+                title="Previous Image"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button 
+                onClick={() => setLightboxIndex((lightboxIndex + 1) % allPictures.length)}
+                className="absolute right-4 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-50 cursor-pointer"
+                title="Next Image"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </>
+          )}
+
+          <div className="max-w-5xl max-h-[85vh] flex flex-col items-center">
+            <img 
+              src={allPictures[lightboxIndex]} 
+              alt="Enlarged Article View" 
+              referrerPolicy="no-referrer"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+            <div className="mt-4 text-white text-xs font-bold tracking-widest uppercase bg-black/60 px-4 py-1.5 rounded-full border border-white/20">
+              Photo {lightboxIndex + 1} of {allPictures.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Share / Copy Toast Notification */}
+      <AnimatePresence>
+        {showShareSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-8 right-8 z-50 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-black uppercase tracking-widest border border-emerald-400/40"
+          >
+            <CheckCircle2 size={20} className="text-white shrink-0 animate-bounce" />
+            <span>Article Link Copied to Clipboard!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+export default NewsDetailView;

@@ -1,0 +1,5896 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import axios from 'axios';
+import {
+  X, RefreshCw, Loader2, ShieldAlert, Newspaper, Users, User, Star,
+  Brain, Activity, Check, ShieldCheck, Database, Zap, Trash2, Key,
+  Globe, Clock, Eye, Sliders, Plus, Search, FileJson, Sparkles, Info, Mail,
+  Smartphone, Download, ArrowLeft, CheckCircle2, Edit, Youtube, Image as ImageIcon, FileText,
+  ChevronDown, AlertTriangle, XCircle, Wrench, Megaphone, EyeOff, ToggleLeft, ToggleRight, Power, Layout, Calculator, BookOpen, GraduationCap, Copy,
+  Menu, ChevronLeft, ChevronRight, Command, Bell, Layers, ExternalLink, ChevronUp, Radio
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArticleImagesUploader } from './ArticleImagesUploader';
+import { AdminState, NewsItem, UserProfile, UserRole, UserActivity, UniversityCategory } from '../types';
+import universityData from '../data/universities';
+import {
+  publishNewsUpdate, deleteNewsUpdate, purgeAllNews,
+  archiveNewsItems, getTickerHeadlines, saveTickerHeadlines, getCloudNews,
+  getGlobalConfig, saveGlobalConfig, saveGlobalScoringSystem,
+  getGlobalScoringSystem, getASUUStatusFromDB, saveASUUStatusToDB,
+  updateGlobalSyncMetadata, updateNewsItem, getAllUserActivities,
+  getTrafficStats, resetTrafficStats, purgeUserActivities,
+  getAllCutoffOverrides, saveCutoffOverride, deleteCutoffOverride, CutoffOverride,
+  getTestimonials, addTestimonial, deleteTestimonial, getFeedbackList,
+  saveKnowledgeFragment, getPredictionAccuracyStats, getAdminNotifications, AdminNotification,
+  getAllCbtAttempts, getAllCgpaRecords, CbtHistoryRecord, CgpaHistoryRecord,
+  toggleNewsTickerStatus
+} from '../services/dbService';
+import {
+  getStoredLinkPreviews, fetchLinkPreviewsFromCloud, saveLinkPreviewImage,
+  deleteLinkPreviewImage, DEFAULT_LINK_PREVIEWS, LinkPreviewMap, LinkPreviewItem
+} from '../services/linkPreviewService';
+import { fetchRecentUsers, getTotalUserCount, updateUserProfile, FREE_USER_LIMIT } from '../services/userService';
+import { admissionsService } from '../services/admissionsService';
+import { fetchLiveNews, getUniversityScoringSystem, getAPIKeysSummary, APIKeySummaryItem } from '../services/geminiService';
+import { auth, db } from '../services/firebaseConfig';
+import { collection, getDocs } from 'firebase/firestore';
+import { getApiUrl, compressImage } from '../services/utils';
+import { SystemHealthStatus } from './SystemHealthStatus';
+import { submitToIndexNow, INDEXNOW_KEY, INDEXNOW_KEY_LOCATION } from '../services/indexNowService';
+import NewsDetailView from './NewsDetailView';
+import { ADMIN_TOKEN } from '../lib/adminAuth';
+import PredictionDetailsModal from './PredictionDetailsModal';
+import { AdminAdsAndPartners } from './AdminAdsAndPartners';
+import CalculationStats from './CalculationStats';
+import { FileUploadHubModal } from './FileUploadHubModal';
+import { formatNewsPostTime } from '../utils/dateUtils';
+
+// ─── Nigerian timezone helpers ────────────────────────────────────────────────
+
+const getNigerianDateStr = () =>
+  new Date().toLocaleDateString('en-US', {
+    month: 'short', day: '2-digit', year: 'numeric', timeZone: 'Africa/Lagos',
+  });
+
+const getNigerianMidnight = () => new Date(getNigerianDateStr()).getTime();
+
+const toMs = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val?.toMillis === 'function') return val.toMillis();
+  if (typeof val?.toDate === 'function') return val.toDate().getTime();
+  if (typeof val === 'object') {
+    if ('seconds' in val) return val.seconds * 1000;
+    if ('_seconds' in val) return val._seconds * 1000;
+  }
+  if (typeof val === 'number') return val;
+  const t = new Date(val).getTime();
+  return isNaN(t) ? 0 : t;
+};
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type AdminTab =
+  | 'analytics'
+  | 'ads_partners'
+  | 'tool_users'
+  | 'infrastructure'
+  | 'cutoffs'
+  | 'accuracy'
+  | 'content'
+  | 'users'
+  | 'notifications'
+  | 'intelligence'
+  | 'admissions_kb'
+  | 'emails'
+  | 'link_pictures'
+  | 'stats'
+  | 'pdf_management'
+  | 'news_ticker';
+
+export interface TabItemConfig {
+  id: AdminTab;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  desc: string;
+  badge?: string;
+}
+
+export interface TabCategoryConfig {
+  category: string;
+  items: TabItemConfig[];
+}
+
+export const ADMIN_TAB_CATEGORIES: TabCategoryConfig[] = [
+  {
+    category: 'Insights & Metrics',
+    items: [
+      { id: 'analytics', label: 'Analytics Overview', icon: Activity, desc: 'Live traffic, queries & demographic activity' },
+      { id: 'stats', label: 'Calculation Stats', icon: Sliders, desc: 'Breakdowns of student cutoff and odds evaluations' },
+      { id: 'accuracy', label: 'Accuracy & Pipeline', icon: Brain, desc: 'Model evaluation benchmarks & sync ground truth' },
+      { id: 'tool_users', label: 'Tool Scholars', icon: Calculator, desc: 'Real-time CGPA calculations & CBT exam sessions' },
+    ]
+  },
+  {
+    category: 'Growth & Monetization',
+    items: [
+      { id: 'ads_partners', label: 'Ads & Partners', icon: Megaphone, desc: 'Sponsored ad campaigns, verification & affiliate hub', badge: 'Revenue' },
+      { id: 'emails', label: 'Email Campaigns', icon: Mail, desc: 'Direct broadcast newsletters, admission alerts & blasts' },
+    ]
+  },
+  {
+    category: 'Content & Admissions',
+    items: [
+      { id: 'content', label: 'News & Editorial', icon: Newspaper, desc: 'Publish, edit, sanitize & archive intelligence' },
+      { id: 'news_ticker', label: 'Scrolling News Ticker', icon: Zap, desc: 'Manage the homepage scrolling headlines' },
+      { id: 'link_pictures', label: 'Link Pictures', icon: ImageIcon, desc: 'Social open-graph previews & banner cards' },
+      { id: 'cutoffs', label: 'Cutoff Overrides', icon: Layout, desc: 'Custom university departmental score rules' },
+      { id: 'admissions_kb', label: 'Admissions KB', icon: Sparkles, desc: 'Direct knowledge base explorer & cloud sync' },
+      { id: 'intelligence', label: 'AI Intelligence', icon: Database, desc: 'Prompt rules & institutional ground truth' },
+      { id: 'pdf_management', label: 'PDF & Syllabus Hub', icon: FileText, desc: 'Official syllabuses, brochures & documents' },
+    ]
+  },
+  {
+    category: 'Community & Security',
+    items: [
+      { id: 'users', label: 'User Directory', icon: Users, desc: 'Manage registered scholars, roles & VIP tiers' },
+      { id: 'notifications', label: 'Admin Alerts', icon: ShieldAlert, desc: 'System notices, error reports & feedback' },
+      { id: 'infrastructure', label: 'Infrastructure & Health', icon: Power, desc: 'API keys, database health, IndexNow & sync' },
+    ]
+  },
+];
+
+interface AdminPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  admin: AdminState;
+  onAdminLogin: (email: string) => void;
+  onAdminLogout: () => void;
+  systemStatus?: { gemini: string; firebase: string };
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+const AdminPanel: React.FC<AdminPanelProps> = ({
+  isOpen, onClose, admin, onAdminLogin, onAdminLogout,
+}) => {
+  const SECRET_TOKEN = ADMIN_TOKEN;
+
+  // ── Tab ─────────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+
+  // ── News Ticker Management ──────────────────────────────────────────────────
+  const [tickerHeadlines, setTickerHeadlines] = useState<string[]>([]);
+  const [tickerNewsArticles, setTickerNewsArticles] = useState<NewsItem[]>([]);
+  const [tickerArticlesSearch, setTickerArticlesSearch] = useState('');
+  const [isTickerLoadingArticles, setIsTickerLoadingArticles] = useState(false);
+  
+  const loadTickerArticles = useCallback(async () => {
+    setIsTickerLoadingArticles(true);
+    try {
+      const news = await getCloudNews(true, true);
+      setTickerNewsArticles(news);
+    } catch (e) {
+      console.warn('Failed to load ticker articles:', e);
+    } finally {
+      setIsTickerLoadingArticles(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'news_ticker') {
+      getTickerHeadlines().then(setTickerHeadlines);
+      loadTickerArticles();
+    }
+  }, [activeTab, loadTickerArticles]);
+
+  const handleToggleArticleTicker = async (item: NewsItem) => {
+    const nextStatus = !item.isTicker;
+    setTickerNewsArticles(prev => prev.map(n => (n.id === item.id || n.slug === item.id) ? { ...n, isTicker: nextStatus } : n));
+    setPublishedNews(prev => prev.map(n => (n.id === item.id || n.slug === item.id) ? { ...n, isTicker: nextStatus } : n));
+    await toggleNewsTickerStatus(item.id, Boolean(item.isTicker));
+  };
+
+  const handleAddTickerHeadline = async () => {
+    const input = document.getElementById('newTickerHeadline') as HTMLInputElement;
+    if (!input.value || !input.value.trim()) return;
+    const newHeadlines = [...tickerHeadlines, input.value.trim()];
+    await saveTickerHeadlines(newHeadlines);
+    setTickerHeadlines(newHeadlines);
+    input.value = '';
+  };
+
+  const handleRemoveTickerHeadline = async (index: number) => {
+    const newHeadlines = tickerHeadlines.filter((_, i) => i !== index);
+    await saveTickerHeadlines(newHeadlines);
+    setTickerHeadlines(newHeadlines);
+  };
+
+  // ── Auth state ──────────────────────────────────────────────────────────────
+  const [loginToken, setLoginToken] = useState('');
+  const [authFailed, setAuthFailed]   = useState(false);
+  const [selectedUserForPredictions, setSelectedUserForPredictions] = useState<any>(null);
+
+  // ── Dashboard Navigation & Command Palette State ─────────────────────────────
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('campusai_admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [paletteSearch, setPaletteSearch] = useState('');
+  const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0);
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('campusai_admin_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const selectTab = useCallback((tab: AdminTab) => {
+    setActiveTab(tab);
+    setIsMobileDrawerOpen(false);
+    setIsCommandPaletteOpen(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  }, []);
+
+  // Keyboard shortcut listener for Command Palette (Ctrl+K or Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      } else if (e.key === 'Escape' && isCommandPaletteOpen) {
+        setIsCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCommandPaletteOpen]);
+
+  const allTabsFlat = useMemo(() => {
+    return ADMIN_TAB_CATEGORIES.flatMap(cat =>
+      cat.items.map(item => ({ ...item, category: cat.category }))
+    );
+  }, []);
+
+  const filteredPaletteItems = useMemo(() => {
+    if (!paletteSearch.trim()) return allTabsFlat;
+    const q = paletteSearch.toLowerCase().trim();
+    return allTabsFlat.filter(
+      item =>
+        item.label.toLowerCase().includes(q) ||
+        item.desc.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q) ||
+        item.id.toLowerCase().includes(q)
+    );
+  }, [allTabsFlat, paletteSearch]);
+
+  useEffect(() => {
+    setSelectedPaletteIndex(0);
+  }, [paletteSearch]);
+
+  const currentTabConfig = useMemo(() => {
+    for (const cat of ADMIN_TAB_CATEGORIES) {
+      const found = cat.items.find(i => i.id === activeTab);
+      if (found) return { ...found, category: cat.category };
+    }
+    return {
+      id: activeTab,
+      label: activeTab,
+      icon: Activity,
+      desc: '',
+      category: 'General',
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['analytics', 'ads_partners', 'infrastructure', 'cutoffs', 'accuracy', 'content', 'users', 'notifications', 'intelligence', 'admissions_kb', 'emails', 'link_pictures', 'stats', 'pdf_management', 'tool_users'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+  }, []);
+
+  // Auto-scroll active tab into center view in mobile tab strip
+  useEffect(() => {
+    const el = document.getElementById(`mobile-tab-${activeTab}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [activeTab]);
+
+  // ── Email Campaign state ──────────────────────────────────────────────────
+  const [emailSubject, setEmailSubject] = useState('CampusAI Admission & Post-UTME Update');
+  const [emailHtmlContent, setEmailHtmlContent] = useState(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CampusAI Update</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f7; color: #333333; margin: 0; padding: 0;">
+  <div style="max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    <div style="background: #2563eb; color: #ffffff; padding: 32px; text-align: center;">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800;">CampusAI Admission Hub</h1>
+      <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Verified 2025/2026 Admission & Post-UTME Updates</p>
+    </div>
+    <div style="padding: 32px;">
+      <h2 style="color: #1f2937; font-size: 20px; margin-top: 0;">Hello Esteemed Scholar,</h2>
+      <p style="line-height: 1.6; font-size: 15px; color: #4b5563;">
+        We have verified and synchronized new cut-off marks, Post-UTME screening schedules, and admission guidelines for your target university in the CampusAI Knowledge Base.
+      </p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="https://campusai.com.ng" style="background: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">Check Your Admission Odds Now</a>
+      </div>
+      <p style="line-height: 1.6; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
+        You received this update because you registered on CampusAI. Stay sharp and prepared for your screening!
+      </p>
+    </div>
+  </div>
+</body>
+</html>`);
+  const [emailRecipientGroup, setEmailRecipientGroup] = useState<'users' | 'subscribers' | 'custom'>('users');
+  const [customEmailsText, setCustomEmailsText] = useState('');
+  const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [emailSendResult, setEmailSendResult] = useState<{ success: boolean; sentCount?: number; total?: number; error?: string } | null>(null);
+  const [emailPreviewMode, setEmailPreviewMode] = useState(false);
+
+  // Resend Config state
+  const [resendApiKey, setResendApiKey] = useState(() => localStorage.getItem('campusai_resend_api_key') || '');
+  const [resendFromEmail, setResendFromEmail] = useState(() => {
+    const stored = localStorage.getItem('campusai_resend_from_email');
+    if (stored && stored.includes('onboarding@resend.dev')) return 'CampusAI Admissions <noreply@campusai.com.ng>';
+    return stored || 'CampusAI Admissions <noreply@campusai.com.ng>';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('campusai_resend_api_key', resendApiKey);
+  }, [resendApiKey]);
+
+  useEffect(() => {
+    localStorage.setItem('campusai_resend_from_email', resendFromEmail);
+  }, [resendFromEmail]);
+
+  // Saved templates state
+  const [savedTemplates, setSavedTemplates] = useState<Array<{ id: string; name: string; subject: string; htmlContent: string }>>(() => {
+    try {
+      const stored = localStorage.getItem('campusai_saved_email_templates');
+      return stored ? JSON.parse(stored) : [
+        { id: '1', name: 'Post-UTME Alert', subject: '🔥 2025/2026 Post-UTME Screening & Cut-Off Notice', htmlContent: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;"><div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 4px 12px rgba(0,0,0,0.1);"><h2 style="color:#2563eb;">Post-UTME Screening Update</h2><p>The updated screening schedule and departmental cut-off marks for 2025/2026 have been verified in the CampusAI Knowledge Base.</p><div style="text-align:center;margin:24px 0;"><a href="https://campusai.com.ng" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Check Status Now</a></div></div></body></html>` },
+        { id: '2', name: 'Admission List Notice', subject: '🎓 Admission List Release & Verification Notice', htmlContent: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;"><div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 4px 12px rgba(0,0,0,0.1);"><h2 style="color:#10b981;">Admission List Verified</h2><p>Your admission status can now be verified against official university portals and JAMB CAPS.</p><div style="text-align:center;margin:24px 0;"><a href="https://campusai.com.ng" style="background:#10b981;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Verify Admission Portal</a></div></div></body></html>` }
+      ];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleSaveCurrentTemplate = () => {
+    const templateName = prompt("Enter a name for this custom email template:");
+    if (!templateName || !templateName.trim()) return;
+
+    const newTemplate = {
+      id: Date.now().toString(),
+      name: templateName.trim(),
+      subject: emailSubject,
+      htmlContent: emailHtmlContent,
+    };
+
+    const updated = [newTemplate, ...savedTemplates];
+    setSavedTemplates(updated);
+    try {
+      localStorage.setItem('campusai_saved_email_templates', JSON.stringify(updated));
+      alert(`Template "${templateName}" saved successfully!`);
+    } catch (e) {
+      console.error("Error saving template:", e);
+    }
+  };
+
+  const handleDeleteTemplate = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this saved template?")) return;
+    const updated = savedTemplates.filter(t => t.id !== id);
+    setSavedTemplates(updated);
+    try {
+      localStorage.setItem('campusai_saved_email_templates', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!emailSubject.trim() || !emailHtmlContent.trim()) {
+      alert("Please enter both subject and HTML content.");
+      return;
+    }
+    const testEmail = prompt("Enter email address to send test email to:", "eiweh123@gmail.com");
+    if (!testEmail || !testEmail.trim() || !testEmail.includes('@')) return;
+
+    setIsSendingEmails(true);
+    setEmailSendResult(null);
+
+    try {
+      const res = await axios.post('/api/admin/send-email', {
+        token: SECRET_TOKEN,
+        recipients: [testEmail.trim()],
+        subject: `[TEST] ${emailSubject}`,
+        htmlContent: emailHtmlContent,
+        apiKey: resendApiKey.trim() || undefined,
+        senderEmail: resendFromEmail.trim() || undefined,
+      });
+
+      if (res.data.success) {
+        setEmailSendResult({ success: true, sentCount: 1, total: 1 });
+        alert(`Test email successfully sent to ${testEmail}! Check your inbox and spam folder.`);
+      } else {
+        const errReason = res.data.error || 'Failed to send test email';
+        setEmailSendResult({ success: false, error: errReason });
+        alert(`Test email failed: ${errReason}`);
+      }
+    } catch (err: any) {
+      console.error("[Test Email Error]:", err);
+      const errReason = err.response?.data?.error || err.message;
+      setEmailSendResult({ success: false, error: errReason });
+      alert(`Test email error: ${errReason}`);
+    } finally {
+      setIsSendingEmails(false);
+    }
+  };
+
+  const handleSendEmailCampaign = async () => {
+    if (!emailSubject.trim() || !emailHtmlContent.trim()) {
+      alert("Please enter both subject and HTML content.");
+      return;
+    }
+    if (!resendApiKey.trim()) {
+      if (!confirm("You have not entered a Resend API Key in the Resend Config section. Do you want to try sending using server environment credentials?")) {
+        return;
+      }
+    }
+    
+    try {
+      let recipientsList: string[] = [];
+      if (emailRecipientGroup === 'users') {
+        recipientsList = recentUsers.map(u => u.email).filter((e): e is string => Boolean(e));
+        if (recipientsList.length === 0) {
+          const fetched = await fetchRecentUsers();
+          recipientsList = fetched.map(u => u.email).filter((e): e is string => Boolean(e));
+        }
+      } else if (emailRecipientGroup === 'subscribers') {
+        const subsSnapshot = await getDocs(collection(db, "subscribers"));
+        subsSnapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.email) recipientsList.push(data.email);
+        });
+      } else {
+        recipientsList = customEmailsText
+          .split(/[\n,]+/)
+          .map(e => e.trim())
+          .filter(e => e && e.includes('@'));
+      }
+
+      if (recipientsList.length === 0) {
+        alert("No valid recipient email addresses found for this target group. Please check your recipient audience selection or custom email list.");
+        return;
+      }
+
+      if (!window.confirm(`Are you sure you want to broadcast this HTML email campaign to ${recipientsList.length} recipient(s)?`)) {
+        return;
+      }
+
+      setIsSendingEmails(true);
+      setEmailSendResult(null);
+
+      const res = await axios.post('/api/admin/send-email', {
+        token: SECRET_TOKEN,
+        recipients: recipientsList,
+        subject: emailSubject,
+        htmlContent: emailHtmlContent,
+        apiKey: resendApiKey.trim() || undefined,
+        senderEmail: resendFromEmail.trim() || undefined,
+      });
+
+      if (res.data.success) {
+        setEmailSendResult({ success: true, sentCount: res.data.sentCount, total: res.data.total });
+        alert(`Successfully dispatched email to ${res.data.sentCount}/${res.data.total} recipients!`);
+      } else {
+        const errReason = res.data.error || 'Failed to send emails';
+        setEmailSendResult({ success: false, error: errReason });
+        alert(`Email dispatch failed: ${errReason}`);
+      }
+    } catch (err: any) {
+      console.error("[Email Campaign Error]:", err);
+      const errReason = err.response?.data?.error || err.message;
+      setEmailSendResult({ success: false, error: errReason });
+      alert(`Email dispatch error: ${errReason}`);
+    } finally {
+      setIsSendingEmails(false);
+    }
+  };
+
+  // ── Intelligence (Testimonials & Feedback) ───────────────────────────────
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [feedbackList, setFeedbackList] = useState<any[]>([]);
+  const [isIntelligenceLoading, setIsIntelligenceLoading] = useState(false);
+  const [newTestimonial, setNewTestimonial] = useState({ name: '', role: '', content: '', rating: 5, school: '', isFeatured: true });
+
+  // ── Departmental Cutoffs (Research & Overrides) ─────────────────────────────
+  const [overrides, setOverrides] = useState<CutoffOverride[]>([]);
+  const [overridesSearch, setOverridesSearch] = useState('');
+  const [isOverridesLoading, setIsOverridesLoading] = useState(false);
+  const [isSavingOverride, setIsSavingOverride] = useState(false);
+  const [overridesError, setOverridesError] = useState('');
+  const [overridesSuccess, setOverridesSuccess] = useState('');
+  const [seedStatus, setSeedStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [bulkJSONText, setBulkJSONText] = useState('');
+  const [accuracyStats, setAccuracyStats] = useState<any>(null);
+  const [isAccuracyLoading, setIsAccuracyLoading] = useState(false);
+
+  const loadAccuracyData = useCallback(async () => {
+    setIsAccuracyLoading(true);
+    try {
+      const stats = await getPredictionAccuracyStats();
+      setAccuracyStats(stats);
+    } catch (e) {
+      console.error("Error loading accuracy stats:", e);
+    } finally {
+      setIsAccuracyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'accuracy') {
+      loadAccuracyData();
+    }
+  }, [activeTab, loadAccuracyData]);
+
+  // New override form state
+  const [newUniName, setNewUniName] = useState('');
+  const [newCourseName, setNewCourseName] = useState('');
+  const [newDeptCutoff, setNewDeptCutoff] = useState('');
+  const [newInstCutoff, setNewInstCutoff] = useState('');
+  const [newOverrideExplanation, setNewOverrideExplanation] = useState('');
+
+  // ── Analytics ───────────────────────────────────────────────────────────────
+  const [keySummaries, setKeySummaries]   = useState<APIKeySummaryItem[]>([]);
+  const [allActivities, setAllActivities] = useState<UserActivity[]>([]);
+  const [adminLogs, setAdminLogs] = useState<AdminNotification[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [trafficStats, setTrafficStats]   = useState({ pageViews: 0, uniqueVisitors: 0, totalCalculations: 310 });
+  const [isResettingTraffic, setIsResettingTraffic] = useState(false);
+  const [isPurgingLogs, setIsPurgingLogs] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+
+  // ── Infrastructure ──────────────────────────────────────────────────────────
+  const [geminiKey, setGeminiKey]   = useState('');
+  const [geminiKey2, setGeminiKey2] = useState('');
+  const [geminiKey3, setGeminiKey3] = useState('');
+  const [newsKeyPref, setNewsKeyPref] = useState('auto');
+  const [calcKeyPref, setCalcKeyPref] = useState('auto');
+  const [developerPhoto, setDeveloperPhoto] = useState('');
+  const [featureKeys, setFeatureKeys] = useState<Record<string, string>>({});
+  const [flutterwaveKey, setFlutterwaveKey] = useState('');
+  const [firecrawlKey, setFirecrawlKey] = useState('fc-325872ba796344e3a3840f2f31090957');
+  const [isChatUnderMaintenance, setIsChatUnderMaintenance] = useState<boolean>(true);
+  const [showImportantBanner, setShowImportantBanner] = useState<boolean>(true);
+  const [socialFacebook, setSocialFacebook]   = useState('');
+  const [socialTwitter, setSocialTwitter]     = useState('');
+  const [socialInstagram, setSocialInstagram] = useState('');
+  const [socialLinkedin, setSocialLinkedin]   = useState('');
+  const [socialYoutube, setSocialYoutube]     = useState('');
+  const [socialTiktok, setSocialTiktok]       = useState('');
+  const [socialNairaland, setSocialNairaland] = useState('');
+  const [socialWhatsapp, setSocialWhatsapp]   = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactWhatsApp, setContactWhatsApp] = useState('');
+  const [contactAddress, setContactAddress] = useState('');
+  const [supportHours, setSupportHours] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0, currentUni: '' });
+
+  // ── Link Pictures / Previews Management State ──────────────────────────────────
+  const [linkPreviewsMap, setLinkPreviewsMap] = useState<LinkPreviewMap>({});
+  const [previewFilter, setPreviewFilter] = useState('');
+  const [customLinkPath, setCustomLinkPath] = useState('');
+  const [customLinkTitle, setCustomLinkTitle] = useState('');
+  const [customLinkSubtitle, setCustomLinkSubtitle] = useState('');
+  const [customLinkImageUrl, setCustomLinkImageUrl] = useState('');
+  const [isSavingLinkPreview, setIsSavingLinkPreview] = useState(false);
+  const [uploadingPath, setUploadingPath] = useState<string | null>(null);
+  const [previewInputUrls, setPreviewInputUrls] = useState<Record<string, string>>({});
+
+  const loadLinkPreviews = useCallback(async () => {
+    const initial = getStoredLinkPreviews();
+    setLinkPreviewsMap(initial);
+    const cloud = await fetchLinkPreviewsFromCloud();
+    if (cloud && Object.keys(cloud).length > 0) {
+      setLinkPreviewsMap(cloud);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'link_pictures') {
+      loadLinkPreviews();
+    }
+  }, [activeTab, loadLinkPreviews]);
+
+  const handleLinkPictureFileUpload = async (path: string, file: File, title?: string, subtitle?: string) => {
+    if (!file) return;
+    try {
+      setUploadingPath(path);
+      const compressedBase64 = await compressImage(file, 800);
+      const updated = await saveLinkPreviewImage(path, compressedBase64, title, subtitle);
+      setLinkPreviewsMap(updated);
+      alert(`Preview picture updated for ${path}`);
+    } catch (e: any) {
+      console.error('Failed to compress or save link preview picture:', e);
+      alert('Failed to upload picture: ' + (e.message || 'Unknown error'));
+    } finally {
+      setUploadingPath(null);
+    }
+  };
+
+  const handleLinkPictureUrlSave = async (path: string, imageUrl: string, title?: string, subtitle?: string) => {
+    if (!imageUrl.trim()) return;
+    try {
+      setIsSavingLinkPreview(true);
+      const updated = await saveLinkPreviewImage(path, imageUrl.trim(), title, subtitle);
+      setLinkPreviewsMap(updated);
+      alert(`Preview picture URL saved for ${path}`);
+    } catch (e: any) {
+      alert('Failed to save preview URL: ' + (e.message || 'Unknown error'));
+    } finally {
+      setIsSavingLinkPreview(false);
+    }
+  };
+
+  const handleLinkPictureDelete = async (path: string) => {
+    if (!confirm(`Are you sure you want to remove the custom picture for ${path}?`)) return;
+    try {
+      const updated = await deleteLinkPreviewImage(path);
+      setLinkPreviewsMap(updated);
+      alert(`Removed preview picture for ${path}`);
+    } catch (e: any) {
+      alert('Failed to delete preview picture: ' + e.message);
+    }
+  };
+
+  const handleAddCustomLinkItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customLinkPath.trim()) {
+      alert('Please provide a path (e.g. /login or /calculator)');
+      return;
+    }
+    const normPath = customLinkPath.trim().startsWith('/') ? customLinkPath.trim() : `/${customLinkPath.trim()}`;
+    await saveLinkPreviewImage(normPath, customLinkImageUrl.trim(), customLinkTitle.trim() || normPath, customLinkSubtitle.trim() || 'Custom Link');
+    setCustomLinkPath('');
+    setCustomLinkTitle('');
+    setCustomLinkSubtitle('');
+    setCustomLinkImageUrl('');
+    loadLinkPreviews();
+    alert(`Added custom link preview for ${normPath}`);
+  };
+
+  // ── IndexNow ─────────────────────────────────────────────────────────────────
+  const [indexNowUrls, setIndexNowUrls] = useState('https://campusai.com.ng/\nhttps://campusai.com.ng/news\nhttps://campusai.com.ng/resultslip');
+  const [isSubmittingIndexNow, setIsSubmittingIndexNow] = useState(false);
+  const [indexNowResult, setIndexNowResult] = useState<{ success?: boolean; message?: string } | null>(null);
+
+  const handleIndexNowSubmit = async () => {
+    const urls = indexNowUrls
+      .split('\n')
+      .map(u => u.trim())
+      .filter(u => u.length > 0);
+
+    if (urls.length === 0) {
+      alert('Please enter at least one URL to submit to IndexNow.');
+      return;
+    }
+
+    setIsSubmittingIndexNow(true);
+    setIndexNowResult(null);
+    try {
+      const res = await submitToIndexNow(urls);
+      setIndexNowResult({ success: res.success, message: res.message });
+    } catch (err: any) {
+      setIndexNowResult({ success: false, message: err?.message || 'Error pinging IndexNow' });
+    } finally {
+      setIsSubmittingIndexNow(false);
+    }
+  };
+
+  // ── Firecrawl Test Scraper ──────────────────────────────────────────────────
+  const [firecrawlTestUrl, setFirecrawlTestUrl] = useState('https://www.futa.edu.ng');
+  const [isFirecrawlTesting, setIsFirecrawlTesting] = useState(false);
+  const [firecrawlTestResult, setFirecrawlTestResult] = useState<any>(null);
+
+  const handleTestFirecrawlScrape = async () => {
+    if (!firecrawlTestUrl.trim()) return;
+    setIsFirecrawlTesting(true);
+    setFirecrawlTestResult(null);
+    try {
+      const res = await axios.post(getApiUrl('/api/firecrawl/scrape'), { url: firecrawlTestUrl.trim() });
+      setFirecrawlTestResult(res.data);
+    } catch (e: any) {
+      setFirecrawlTestResult({ success: false, error: e.response?.data?.error || e.message });
+    } finally {
+      setIsFirecrawlTesting(false);
+    }
+  };
+
+  const [isSyncingKnowledge, setIsSyncingKnowledge] = useState(false);
+  const [syncKnowledgeSuccess, setSyncKnowledgeSuccess] = useState(false);
+  const [isPublishingNews, setIsPublishingNews] = useState(false);
+  const [publishNewsSuccess, setPublishNewsSuccess] = useState(false);
+
+  const handleSyncToKnowledge = async () => {
+    if (!firecrawlTestResult?.success || !firecrawlTestResult.data?.markdown) return;
+    setIsSyncingKnowledge(true);
+    setSyncKnowledgeSuccess(false);
+    try {
+      let hostname = firecrawlTestUrl.trim();
+      try { hostname = new URL(firecrawlTestUrl.trim().startsWith('http') ? firecrawlTestUrl.trim() : `https://${firecrawlTestUrl.trim()}`).hostname; } catch {}
+      const keyName = `scraped_${hostname.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+      await saveKnowledgeFragment(keyName, firecrawlTestResult.data.markdown);
+      setSyncKnowledgeSuccess(true);
+    } catch (e: any) {
+      console.error("Failed to sync knowledge:", e);
+    } finally {
+      setIsSyncingKnowledge(false);
+    }
+  };
+
+  const handlePublishAsArticle = async () => {
+    if (!firecrawlTestResult?.success || !firecrawlTestResult.data?.markdown) return;
+    setIsPublishingNews(true);
+    setPublishNewsSuccess(false);
+    try {
+      const markdown = firecrawlTestResult.data.markdown;
+      const lines = markdown.split('\n').filter((l: string) => l.trim().length > 0);
+      let title = "FUTA Official Web Update";
+      for (const line of lines) {
+        if (line.startsWith('# ')) {
+          title = line.replace('# ', '').trim();
+          break;
+        } else if (line.startsWith('## ')) {
+          title = line.replace('## ', '').trim();
+          break;
+        } else if (line.length > 10 && line.length < 100 && !line.includes('http')) {
+          title = line.trim();
+          break;
+        }
+      }
+      const excerpt = lines.slice(1, 4).join(' ').slice(0, 180) + '...';
+      
+      await publishNewsUpdate({
+        title,
+        excerpt,
+        content: markdown,
+        category: 'University Update',
+        readTime: '4 min read',
+        author: 'FUTA Portal Scraper',
+        imageUrl: 'https://futa.edu.ng/asset/img/futalogo.png',
+        isLive: true,
+        date: new Date().toISOString()
+      } as any);
+      setPublishNewsSuccess(true);
+    } catch (e: any) {
+      console.error("Failed to publish news article:", e);
+    } finally {
+      setIsPublishingNews(false);
+    }
+  };
+
+  // ── Manual Webhook / Monitor Scraper ─────────────────────────────
+  const [manualMonitorUrl, setManualMonitorUrl] = useState('');
+  const [isProcessingMonitor, setIsProcessingMonitor] = useState(false);
+  const [manualMonitorStatus, setManualMonitorStatus] = useState<string | null>(null);
+
+  const handleRunManualMonitor = async () => {
+    if (!manualMonitorUrl.trim()) return;
+    setIsProcessingMonitor(true);
+    setManualMonitorStatus(null);
+    try {
+      const scrapeRes = await axios.post(getApiUrl('/api/firecrawl/scrape'), {
+        url: manualMonitorUrl.trim(),
+        formats: ['markdown']
+      }, {
+        headers: { 'x-admin-token': SECRET_TOKEN }
+      });
+
+      if (!scrapeRes.data?.success || !scrapeRes.data?.data) {
+        throw new Error(scrapeRes.data?.error || "Failed to scrape URL with Firecrawl");
+      }
+
+      const markdown = scrapeRes.data.data.markdown || scrapeRes.data.data.content || '';
+      if (!markdown) {
+        throw new Error("No text content extracted from URL");
+      }
+
+      const webhookRes = await axios.post(getApiUrl('/api/webhooks/firecrawl'), {
+        data: {
+          markdown,
+          url: manualMonitorUrl.trim()
+        }
+      });
+
+      if (webhookRes.data?.success) {
+        setManualMonitorStatus(`✅ Success: ${webhookRes.data.message || 'Article processed & published!'}`);
+        setManualMonitorUrl('');
+        await loadAnalyticsData();
+        await loadAdminNews();
+      } else {
+        throw new Error(webhookRes.data?.error || "Webhook pipeline failed");
+      }
+    } catch (err: any) {
+      console.error("Manual monitor trigger error:", err);
+      setManualMonitorStatus(`❌ Error: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setIsProcessingMonitor(false);
+    }
+  };
+
+  // ── Content ─────────────────────────────────────────────────────────────────
+  const [publishedNews, setPublishedNews] = useState<NewsItem[]>([]);
+  const [adminNewsLimit, setAdminNewsLimit] = useState(20);
+  const [hasMoreAdminNews, setHasMoreAdminNews] = useState(true);
+  const [isAdminNewsLoading, setIsAdminNewsLoading] = useState(false);
+
+  const loadAdminNews = useCallback(async (limitOverride?: number) => {
+    setIsAdminNewsLoading(true);
+    try {
+      const limitToUse = limitOverride ?? adminNewsLimit;
+      const news = await getCloudNews(true, true, undefined, undefined, limitToUse);
+      setPublishedNews(news);
+      setHasMoreAdminNews(news.length >= limitToUse);
+    } catch (e) {
+      console.error("Failed to load admin news:", e);
+    } finally {
+      setIsAdminNewsLoading(false);
+    }
+  }, [adminNewsLimit]);
+
+  const handleLoadMoreNews = async () => {
+    const nextLimit = adminNewsLimit + 20;
+    setAdminNewsLimit(nextLimit);
+    await loadAdminNews(nextLimit);
+  };
+  const [showPostForm, setShowPostForm]   = useState(false);
+  const [newsFilter, setNewsFilter] = useState<'live' | 'pending'>('live');
+  const [newsSearchTerm, setNewsSearchTerm] = useState('');
+  // ✅ FIX: newPost no longer stores a stale date — date is always computed fresh at publish time
+  const [newPost, setNewPost] = useState<Partial<NewsItem>>({ category: 'National' });
+  const [editingDateId, setEditingDateId]     = useState<string | null>(null);
+  const [editedDateValue, setEditedDateValue] = useState('');
+  const [previewNews, setPreviewNews] = useState<NewsItem | null>(null);
+
+  // ── AI Blog Generator ────────────────────────────────────────────────────────
+  const [showAIBlogForm, setShowAIBlogForm] = useState(false);
+  const [aiBlogQuery, setAiBlogQuery] = useState('');
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [aiGeneratedPost, setAiGeneratedPost] = useState<{
+    title: string;
+    fullContent: string;
+    category: string;
+    excerpt: string;
+  } | null>(null);
+  const [aiSources, setAiSources] = useState<string[]>([]);
+
+  // ── Firecrawl Official Agent Research ─────────────────────────────────────────
+  const [showFirecrawlAgentModal, setShowFirecrawlAgentModal] = useState(false);
+  const [firecrawlTargetUni, setFirecrawlTargetUni] = useState('University of Lagos (UNILAG)');
+  const [firecrawlCustomPrompt, setFirecrawlCustomPrompt] = useState('');
+  const [isFirecrawlRunning, setIsFirecrawlRunning] = useState(false);
+  const [firecrawlResult, setFirecrawlResult] = useState<any>(null);
+  const [firecrawlAutoPublish, setFirecrawlAutoPublish] = useState(false);
+
+  // ── Users ───────────────────────────────────────────────────────────────────
+  const [recentUsers, setRecentUsers]     = useState<UserProfile[]>([]);
+  const [totalUserCount, setTotalUserCount] = useState(0);
+
+
+  // ── Notifications ────────────────────────────────────────────────────────────
+  const [asuuStatus, setAsuuStatus] = useState({
+    isActive: false, status: 'No Strike', summary: '', lastUpdated: '',
+  });
+
+  // ── Shared loading — separated per concern to avoid conflicts ────────────────
+  const [isContentLoading, setIsContentLoading] = useState(false);
+  const [isUserLoading, setIsUserLoading]       = useState(false);
+
+  // ── News Editing (Full Content) ─────────────────────────────────────────────
+  const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
+  const [isSavingNews, setIsSavingNews] = useState(false);
+
+  const handleSanitizeContent = (content: string) => {
+    if (!content) return '';
+    return content
+      // Remove specific rubbish patterns provided by the user
+      .replace(/As a result of Admission into our institution, determined Additional Evidence of requirements following Eastern higher completion milestones.*/gi, '')
+      .replace(/Minimum 135 year incorporating.*/gi, '')
+      .replace(/Across R ment Collect be fur.*/gi, '')
+      .replace(/Msd agreeing tweak validator.*/gi, '')
+      .replace(/eromin \^ earliest.*/gi, '')
+      .replace(/_ed promptly\)\$.*/gi, '')
+      .replace(/Welcome outSteel apart.*/gi, '')
+      .replace(/Candidate unconditional Pl age gorgeous.*/gi, '')
+      .replace(/Timroduce web र DO not written hmm.*/gi, '')
+      .replace(/html At trader injected trades Lil seats.*/gi, '')
+      .replace(/Admission Requirements \( eromin \^ earliest.*/gi, '')
+      .replace(/Kai wa Ọrganĩ Written Subject scores.*/gi, ' ')
+      .replace(/Merchant Proficiency Photo List scores.*/gi, ' ')
+      .replace(/pv lan commonly jointgroup positions.*/gi, ' ')
+      .replace(/Quick Action Checklist for 2026\/2026 Post-UTME Candidates.*/gi, 'Quick Action Checklist for 2025/2026 Post-UTME Candidates')
+      // Remove generic AI artifacts and technical leakage
+      .replace(/ClassName|className|#html|lmore|Timroduce|hmm|il thereby|dan,K detox|\/|\\|:|\$|र| 준비|準備/gi, ' ')
+      .replace(/[\u0370-\u03FF\u1F00-\u1FFF]/g, '') // Remove Greek/Misc symbols
+      .replace(/\s\s+/g, ' ')
+      .trim();
+  };
+
+  const handleSaveNewsEdits = async () => {
+    if (!editingNews) return;
+    setIsSavingNews(true);
+    try {
+      const finalImages = editingNews.images && editingNews.images.length > 0
+        ? editingNews.images
+        : (editingNews.image ? [editingNews.image] : []);
+      const finalImage = editingNews.image || finalImages[0] || '';
+      const updatedItem = {
+        ...editingNews,
+        image: finalImage,
+        images: finalImages,
+        updatedAt: new Date().toISOString()
+      };
+      await updateNewsItem(editingNews.id, updatedItem);
+      
+      // Refresh local list for immediate visual feedback in Admin Panel
+      setPublishedNews(prev => prev.map(n => n.id === editingNews.id ? updatedItem : n));
+      
+      // Clear cache and notify app
+      window.dispatchEvent(new Event('campusai_news_updated'));
+      window.dispatchEvent(new Event('campusai_news_sync'));
+      
+      setEditingNews(null);
+      alert("✅ Article updated and persisted to Cloud successfully.");
+    } catch (e) {
+      console.error("Save failure:", e);
+      alert("❌ Failed to save news edits. Please check your connection.");
+    } finally {
+      setIsSavingNews(false);
+    }
+  };
+
+  // ── Loaders ─────────────────────────────────────────────────────────────────
+
+  const reloadKeySummaries = useCallback(() => {
+    setKeySummaries(getAPIKeysSummary());
+  }, []);
+
+  // ── Tool Users (CGPA & CBT) State ──────────────────────────────
+  const [cbtAttempts, setCbtAttempts] = useState<CbtHistoryRecord[]>([]);
+  const [cgpaRecords, setCgpaRecords] = useState<CgpaHistoryRecord[]>([]);
+  const [isToolUsersLoading, setIsToolUsersLoading] = useState(false);
+  const [toolFilter, setToolFilter] = useState<'all' | 'cbt' | 'cgpa'>('all');
+  const [toolSearch, setToolSearch] = useState('');
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+
+  const loadToolUsersData = useCallback(async () => {
+    setIsToolUsersLoading(true);
+    try {
+      const [cbts, cgpas] = await Promise.all([
+        getAllCbtAttempts(300),
+        getAllCgpaRecords(300)
+      ]);
+      setCbtAttempts(cbts);
+      setCgpaRecords(cgpas);
+    } catch (e) {
+      console.error("Tool users load error:", e);
+    } finally {
+      setIsToolUsersLoading(false);
+    }
+  }, []);
+
+  const loadAnalyticsData = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const [logs, stats, adminLogsResult] = await Promise.all([
+        getAllUserActivities(500),
+        getTrafficStats(),
+        getAdminNotifications()
+      ]);
+      setAllActivities(logs);
+      if (stats) setTrafficStats(stats);
+      if (adminLogsResult) setAdminLogs(adminLogsResult);
+      // Also fetch tool users data in parallel
+      loadToolUsersData();
+    } catch (e) {
+      console.error("Analytics load error:", e);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [loadToolUsersData]);
+
+  const handleResetTraffic = useCallback(async () => {
+    setIsResettingTraffic(true);
+    try {
+      await resetTrafficStats();
+      try {
+        await fetch('/api/admin/recalibrate-traffic-and-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: admin.email, resetToReal: true })
+        });
+      } catch {}
+      await loadAnalyticsData();
+      setShowResetConfirm(false);
+    } catch (e) {
+      console.error("Reset traffic error:", e);
+    } finally {
+      setIsResettingTraffic(false);
+    }
+  }, [loadAnalyticsData, admin.email]);
+
+  const handlePurgeLogs = useCallback(async () => {
+    setIsPurgingLogs(true);
+    try {
+      await purgeUserActivities();
+      await loadAnalyticsData();
+      setShowPurgeConfirm(false);
+    } catch (e) {
+      console.error("Purge logs error:", e);
+    } finally {
+      setIsPurgingLogs(false);
+    }
+  }, [loadAnalyticsData]);
+
+  const loadInitialData = useCallback(async () => {
+    const config = await getGlobalConfig();
+    if (config) {
+      if (config.flutterwaveKey) setFlutterwaveKey(config.flutterwaveKey);
+      if (config.geminiKey)      setGeminiKey(config.geminiKey);
+      if (config.geminiKey2)     setGeminiKey2(config.geminiKey2);
+      if (config.geminiKey3)     setGeminiKey3(config.geminiKey3);
+      if (config.newsKeyPref)    setNewsKeyPref(config.newsKeyPref);
+      if (config.calcKeyPref)    setCalcKeyPref(config.calcKeyPref);
+      if (config.developerPhoto) setDeveloperPhoto(config.developerPhoto);
+      if (config.featureKeys)    setFeatureKeys(config.featureKeys);
+      if (config.firecrawlKey)   setFirecrawlKey(config.firecrawlKey);
+      if (config.isChatUnderMaintenance !== undefined) setIsChatUnderMaintenance(Boolean(config.isChatUnderMaintenance));
+      else setIsChatUnderMaintenance(true);
+      if (config.showImportantBanner !== undefined) setShowImportantBanner(Boolean(config.showImportantBanner));
+      else setShowImportantBanner(true);
+      if (config.socialLinks) {
+        setSocialFacebook(config.socialLinks.facebook   || '');
+        setSocialTwitter(config.socialLinks.twitter     || '');
+        setSocialInstagram(config.socialLinks.instagram || '');
+        setSocialLinkedin(config.socialLinks.linkedin   || '');
+        setSocialYoutube(config.socialLinks.youtube     || '');
+        setSocialTiktok(config.socialLinks.tiktok       || '');
+        setSocialNairaland(config.socialLinks.nairaland || '');
+        setSocialWhatsapp(config.socialLinks.whatsapp   || '');
+      }
+      if (config.contact) {
+        setContactEmail(config.contact.email || '');
+        setContactWhatsApp(config.contact.whatsapp || '');
+        setContactAddress(config.contact.address || '');
+        setSupportHours(config.contact.supportHours || '');
+      }
+    }
+    const [news, _, asuu] = await Promise.all([
+      getCloudNews(true, true, undefined, undefined, adminNewsLimit),
+      getTickerHeadlines(),
+      getASUUStatusFromDB(),
+    ]);
+    setPublishedNews(news);
+    setHasMoreAdminNews(news.length >= adminNewsLimit);
+    if (asuu) setAsuuStatus(asuu);
+  }, [adminNewsLimit]);
+
+  const loadUsers = useCallback(async () => {
+    setIsUserLoading(true);
+    try {
+      const [users, count] = await Promise.all([fetchRecentUsers(), getTotalUserCount(true)]);
+      setRecentUsers(users);
+      setTotalUserCount(count > 0 ? Math.max(count, users.length) : users.length);
+    } finally {
+      setIsUserLoading(false);
+    }
+  }, []);
+
+  // ── Effects — each concern loads independently, no double-fetch ──────────────
+
+  useEffect(() => {
+    if (!isOpen || !admin.isLoggedIn) return;
+    loadInitialData();
+    loadUsers();
+    loadAnalyticsData();
+    reloadKeySummaries();
+
+    const handleUserRegistered = () => {
+      loadUsers();
+    };
+    window.addEventListener('campusai_user_registered', handleUserRegistered);
+
+    let activityDebounceTimer: any = null;
+    const handleActivity = () => {
+      if (activityDebounceTimer) return;
+      activityDebounceTimer = setTimeout(() => {
+        activityDebounceTimer = null;
+        loadAnalyticsData();
+        loadUsers();
+      }, 30000); // Debounce to at most once per 30 seconds
+    };
+    window.addEventListener('campusai_activity_logged', handleActivity);
+    return () => {
+      if (activityDebounceTimer) clearTimeout(activityDebounceTimer);
+      window.removeEventListener('campusai_activity_logged', handleActivity);
+      window.removeEventListener('campusai_user_registered', handleUserRegistered);
+    };
+  }, [isOpen, admin.isLoggedIn, loadUsers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load specific tab data when switching tabs
+  const loadCutoffOverrides = useCallback(async () => {
+    setIsOverridesLoading(true);
+    setOverridesError('');
+    setOverridesSuccess('');
+    try {
+      const data = await getAllCutoffOverrides();
+      setOverrides(data);
+    } catch (e: any) {
+      console.error("Error loading cutoffs:", e);
+      setOverridesError(e.message || "Failed to load cutoff overrides.");
+    } finally {
+      setIsOverridesLoading(false);
+    }
+  }, []);
+
+  const handleSaveNewOverride = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUniName.trim() || !newCourseName.trim() || !newDeptCutoff.trim()) {
+      setOverridesError("Institution name, Course, and Departmental Cutoff are required.");
+      return;
+    }
+
+    setIsSavingOverride(true);
+    setOverridesError('');
+    setOverridesSuccess('');
+    try {
+      await saveCutoffOverride(
+        newUniName.trim(),
+        newCourseName.trim(),
+        newDeptCutoff.trim(),
+        newInstCutoff.trim(),
+        newOverrideExplanation.trim()
+      );
+      setOverridesSuccess(`Successfully saved cutoff override for ${newCourseName} at ${newUniName}!`);
+      setNewUniName('');
+      setNewCourseName('');
+      setNewDeptCutoff('');
+      setNewInstCutoff('');
+      setNewOverrideExplanation('');
+      await loadCutoffOverrides();
+    } catch (err: any) {
+      console.error("Error saving override:", err);
+      setOverridesError(err.message || "Failed to save override.");
+    } finally {
+      setIsSavingOverride(false);
+    }
+  };
+
+  const handleDeleteOverride = async (institution: string, course: string) => {
+    if (!window.confirm(`Are you sure you want to delete the cutoff override for ${course} at ${institution}?`)) {
+      return;
+    }
+    setIsOverridesLoading(true);
+    setOverridesError('');
+    setOverridesSuccess('');
+    try {
+      await deleteCutoffOverride(institution, course);
+      setOverridesSuccess("Override deleted successfully.");
+      await loadCutoffOverrides();
+    } catch (err: any) {
+      console.error("Error deleting override:", err);
+      setOverridesError(err.message || "Failed to delete override.");
+    } finally {
+      setIsOverridesLoading(false);
+    }
+  };
+
+  const handleBulkJSONImport = async () => {
+    if (!bulkJSONText.trim()) {
+      setOverridesError("Please paste some JSON data before importing.");
+      return;
+    }
+
+    setIsSavingOverride(true);
+    setOverridesError('');
+    setOverridesSuccess('');
+    try {
+      let parsed: any;
+      try {
+        parsed = JSON.parse(bulkJSONText);
+      } catch (jsonErr: any) {
+        throw new Error(`Invalid JSON format: ${jsonErr.message}`);
+      }
+
+      if (!Array.isArray(parsed)) {
+        throw new Error("Pasted JSON must be a list (Array) of objects.");
+      }
+
+      let importCount = 0;
+      for (const item of parsed) {
+        if (!item.institution || !item.course || !item.departmentalCutoff) {
+          console.warn("Skipping item missing required fields:", item);
+          continue;
+        }
+        await saveCutoffOverride(
+          item.institution.trim(),
+          item.course.trim(),
+          String(item.departmentalCutoff).trim(),
+          String(item.institutionalCutoff || "").trim(),
+          String(item.explanation || "").trim()
+        );
+        importCount++;
+      }
+
+      setOverridesSuccess(`Successfully imported and updated ${importCount} cutoff rules!`);
+      setBulkJSONText('');
+      await loadCutoffOverrides();
+    } catch (err: any) {
+      console.error("Bulk import failed:", err);
+      setOverridesError(err.message || "Failed to perform bulk import.");
+    } finally {
+      setIsSavingOverride(false);
+    }
+  };
+
+  const loadIntelligenceData = useCallback(async () => {
+    setIsIntelligenceLoading(true);
+    try {
+      const [t, f] = await Promise.all([getTestimonials(), getFeedbackList()]);
+      setTestimonials(t);
+      setFeedbackList(f);
+    } catch (e) {
+      console.error("Intelligence load error:", e);
+    } finally {
+      setIsIntelligenceLoading(false);
+    }
+  }, []);
+
+  const handleAddTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTestimonial.name || !newTestimonial.content) return;
+    setIsIntelligenceLoading(true);
+    try {
+      await addTestimonial(newTestimonial);
+      setNewTestimonial({ name: '', role: '', content: '', rating: 5, school: '', isFeatured: true });
+      await loadIntelligenceData();
+    } finally {
+      setIsIntelligenceLoading(false);
+    }
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    if (!window.confirm("Delete this testimonial?")) return;
+    setIsIntelligenceLoading(true);
+    try {
+      await deleteTestimonial(id);
+      await loadIntelligenceData();
+    } finally {
+      setIsIntelligenceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !admin.isLoggedIn) return;
+    if (activeTab === 'analytics') loadAnalyticsData();
+    if (activeTab === 'tool_users') loadToolUsersData();
+    if (activeTab === 'cutoffs') loadCutoffOverrides();
+    if (activeTab === 'intelligence') loadIntelligenceData();
+    reloadKeySummaries();
+  }, [activeTab, isOpen, admin.isLoggedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Content handlers ─────────────────────────────────────────────────────────
+
+  const handleSyncLiveNews = async () => {
+    setIsContentLoading(true);
+    try {
+      const liveData = await fetchLiveNews('eiweh123@gmail.com');
+      if (liveData?.length) {
+        // AI Synced news starts as pending (defaultLiveStatus = false)
+        await archiveNewsItems(liveData, false);
+        await updateGlobalSyncMetadata(Date.now());
+        const updatedNews = await getCloudNews(true, true, undefined, undefined, adminNewsLimit);
+        setPublishedNews(updatedNews);
+        setHasMoreAdminNews(updatedNews.length >= adminNewsLimit);
+        
+        // Dispatch global events
+        window.dispatchEvent(new Event('campusai_news_updated'));
+        window.dispatchEvent(new Event('campusai_news_sync'));
+        
+        setNewsFilter('pending'); // Switch to pending to show the user what was synced
+        alert(`Synced ${liveData.length} news items. They are now in "Pending Review" for your approval.`);
+      }
+    } finally { setIsContentLoading(false); }
+  };
+
+  const handleApproveNews = async (id: string) => {
+    try {
+      await updateNewsItem(id, { isLive: true });
+      setPublishedNews(prev => prev.map(n => n.id === id ? { ...n, isLive: true } : n));
+      window.dispatchEvent(new Event('campusai_news_updated'));
+      alert("✅ News published successfully!");
+    } catch (e) {
+      alert("❌ Failed to publish news.");
+    }
+  };
+
+  const handlePurgeAllNews = async () => {
+    if (!window.confirm('CRITICAL: Purge ALL stored news from the database?')) return;
+    setIsContentLoading(true);
+    try {
+      const { purgeAllNews: purge } = await import('../services/dbService');
+      await purge();
+      setPublishedNews([]);
+      alert('Feed purged. Run a fresh Global Sync to repopulate.');
+    } catch (e) {
+      alert('Failed to purge news feed.');
+    } finally { setIsContentLoading(false); }
+  };
+
+  // ✅ FIX: Always call getNigerianDateStr() fresh at publish time — never use stale state date
+  const handlePublishPost = async () => {
+    if (!newPost.title) return;
+    setIsContentLoading(true);
+    try {
+      const freshDate = getNigerianDateStr();
+      await publishNewsUpdate({ ...newPost, date: freshDate, isImportant: false } as any);
+      setShowPostForm(false);
+      // ✅ FIX: Reset form fully so next open always starts clean
+      setNewPost({ category: 'National' });
+      const updatedNews = await getCloudNews(true, true, undefined, undefined, adminNewsLimit);
+      setPublishedNews(updatedNews);
+      setHasMoreAdminNews(updatedNews.length >= adminNewsLimit);
+      
+      // Dispatch update event globally to reload all feeds
+      window.dispatchEvent(new Event('campusai_news_updated'));
+      window.dispatchEvent(new Event('campusai_news_sync'));
+    } finally { setIsContentLoading(false); }
+  };
+
+  const handleGenerateAIBlog = async () => {
+    if (!aiBlogQuery.trim()) return;
+    setIsAIGenerating(true);
+    setAiGeneratedPost(null);
+    setAiSources([]);
+    try {
+      const response = await axios.post(getApiUrl('/api/admin/generate-blog-post'), { query: aiBlogQuery });
+      if (response.data && response.data.success) {
+        setAiGeneratedPost(response.data.post);
+        setAiSources(response.data.sources || []);
+      } else {
+        alert(response.data.error || "Failed to generate blog post.");
+      }
+    } catch (e: any) {
+      console.error("AI Generation failed:", e);
+      alert(e.response?.data?.error || "An error occurred during blog post generation.");
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
+  const handlePublishAIPost = async () => {
+    if (!aiGeneratedPost || !aiGeneratedPost.title) return;
+    setIsContentLoading(true);
+    try {
+      const freshDate = getNigerianDateStr();
+      await publishNewsUpdate({
+        title: aiGeneratedPost.title,
+        fullContent: aiGeneratedPost.fullContent,
+        category: aiGeneratedPost.category,
+        excerpt: aiGeneratedPost.excerpt,
+        date: freshDate,
+        isImportant: false
+      } as any);
+      
+      setAiGeneratedPost(null);
+      setAiBlogQuery('');
+      setAiSources([]);
+      setShowAIBlogForm(false);
+      
+      const updatedNews = await getCloudNews(true, true, undefined, undefined, adminNewsLimit);
+      setPublishedNews(updatedNews);
+      setHasMoreAdminNews(updatedNews.length >= adminNewsLimit);
+      
+      // Dispatch update event globally to reload all feeds
+      window.dispatchEvent(new Event('campusai_news_updated'));
+      window.dispatchEvent(new Event('campusai_news_sync'));
+      
+      alert("Successfully published AI generated blog post!");
+    } catch (e) {
+      console.error("Failed to publish AI blog post:", e);
+      alert("Failed to publish AI blog post to cloud.");
+    } finally {
+      setIsContentLoading(false);
+    }
+  };
+
+  const handleRunFirecrawlAgent = async () => {
+    if (!firecrawlTargetUni.trim()) return;
+    setIsFirecrawlRunning(true);
+    setFirecrawlResult(null);
+    try {
+      const response = await axios.post(
+        getApiUrl('/api/admin/firecrawl-research'),
+        {
+          universityName: firecrawlTargetUni.trim(),
+          customPrompt: firecrawlCustomPrompt.trim() || undefined,
+          autoPublish: firecrawlAutoPublish
+        },
+        {
+          headers: {
+            'x-admin-token': SECRET_TOKEN
+          }
+        }
+      );
+
+      if (response.data && response.data.success) {
+        setFirecrawlResult(response.data.data);
+        if (firecrawlAutoPublish) {
+          await loadAdminNews();
+          window.dispatchEvent(new Event('campusai_news_updated'));
+          alert(`Official research complete and published to News! (ID: ${response.data.newsId || 'Saved'})`);
+        } else {
+          alert(`Official research for ${firecrawlTargetUni} completed successfully! Preview below.`);
+        }
+      } else {
+        alert(response.data.error || "Failed to complete Firecrawl research.");
+      }
+    } catch (err: any) {
+      console.error("[Firecrawl Agent Error]", err);
+      alert(`Firecrawl Agent Error: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setIsFirecrawlRunning(false);
+    }
+  };
+
+  const handleDeletePost = async (id: string) => {
+    if (!window.confirm('Delete this post?')) return;
+    await deleteNewsUpdate(id);
+    setPublishedNews(prev => prev.filter(n => n.id !== id));
+    
+    // Dispatch update event globally to reload all feeds
+    window.dispatchEvent(new Event('campusai_news_updated'));
+    window.dispatchEvent(new Event('campusai_news_sync'));
+  };
+
+  const handleSaveDate = async (id: string) => {
+    if (!editedDateValue) { setEditingDateId(null); return; }
+    setIsContentLoading(true);
+    try {
+      await updateNewsItem(id, { date: editedDateValue });
+      setPublishedNews(prev => prev.map(n => n.id === id ? { ...n, date: editedDateValue } : n));
+      setEditingDateId(null);
+    } finally { setIsContentLoading(false); }
+  };
+
+  const handleFixFutureDates = async () => {
+    const todayStr      = getNigerianDateStr();
+    const todayMidnight = getNigerianMidnight();
+    console.log("handleFixFutureDates", { todayStr, todayMidnight });
+    const futureNews    = publishedNews.filter(n => {
+      if (!n.date) return false;
+      const t = new Date(n.date).getTime();
+      console.log("News item", n.title, n.date, t);
+      // Detect if date is visually a future string compared to today
+      const isFutureString = n.date > todayStr && n.date.includes("2026-");
+      return (!isNaN(t) && t > todayMidnight + 86400000) || isFutureString;
+    });
+
+    console.log("futureNews count", futureNews.length);
+    if (!futureNews.length) { alert("No future dates detected (beyond today)."); return; }
+    if (!window.confirm(`Reset ${futureNews.length} future-dated articles to ${todayStr}?`)) return;
+
+    setIsContentLoading(true);
+    try {
+      for (const item of futureNews) await updateNewsItem(item.id, { date: todayStr });
+      await loadInitialData();
+      alert(`Successfully reset ${futureNews.length} dates.`);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to fix future dates.");
+    } finally { setIsContentLoading(false); }
+  };
+
+  const handleUpdateAsuu = async () => {
+    setIsContentLoading(true);
+    try {
+      await saveASUUStatusToDB(asuuStatus);
+      alert('Status updated.');
+    } finally { setIsContentLoading(false); }
+  };
+
+  const handleSyncScoring = async () => {
+    setIsSyncing(true);
+    setSyncProgress({ current: 0, total: universityData.length, currentUni: '' });
+    for (let i = 0; i < universityData.length; i++) {
+      const uni = universityData[i];
+      setSyncProgress({ current: i + 1, total: universityData.length, currentUni: uni.name });
+      const existing = await getGlobalScoringSystem(uni.slug);
+      if (!existing) {
+        const scoring = await getUniversityScoringSystem(uni.name);
+        if (scoring) await saveGlobalScoringSystem(uni.slug, scoring);
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    setIsSyncing(false);
+    alert('Scoring sync complete.');
+  };
+
+  const handleSaveConfig = async () => {
+    const socialLinks = {
+      facebook: socialFacebook, twitter: socialTwitter,
+      instagram: socialInstagram, linkedin: socialLinkedin,
+      youtube: socialYoutube, tiktok: socialTiktok,
+      nairaland: socialNairaland, whatsapp: socialWhatsapp,
+    };
+    const contact = { email: contactEmail, whatsapp: contactWhatsApp, address: contactAddress, supportHours };
+    await saveGlobalConfig({ 
+      geminiKey, geminiKey2, geminiKey3, newsKeyPref, calcKeyPref, developerPhoto, flutterwaveKey, firecrawlKey, featureKeys, socialLinks, contact,
+      isChatUnderMaintenance, showImportantBanner
+    });
+    try {
+      localStorage.setItem('campusai_social_links', JSON.stringify(socialLinks));
+      if (geminiKey)      localStorage.setItem('campusai_gemini_key',   geminiKey);
+      if (geminiKey2)     localStorage.setItem('campusai_gemini_key_2', geminiKey2);
+      if (geminiKey3)     localStorage.setItem('campusai_gemini_key_3', geminiKey3);
+      if (firecrawlKey)   localStorage.setItem('campusai_firecrawl_key', firecrawlKey);
+      if (newsKeyPref)    localStorage.setItem('campusai_news_key_pref', newsKeyPref);
+      if (calcKeyPref)    localStorage.setItem('campusai_calc_key_pref', calcKeyPref);
+      if (developerPhoto) localStorage.setItem('campusai_developer_photo', developerPhoto);
+      localStorage.setItem('campusai_chat_maintenance', isChatUnderMaintenance ? 'true' : 'false');
+      localStorage.setItem('campusai_show_important_banner', showImportantBanner ? 'true' : 'false');
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('campusai_config_updated'));
+    } catch {}
+    alert('Config saved and applied.');
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => { if (typeof reader.result === 'string') setDeveloperPhoto(reader.result); };
+    reader.readAsDataURL(file);
+  };
+
+  // Merge and deduplicate all Tool Activity records (CBT exams + CGPA calculations)
+  const mergedToolItems = useMemo(() => {
+    const list: any[] = [];
+    const seen = new Set<string>();
+
+    // 1. Add CBT attempts from cbt_history
+    for (const c of cbtAttempts) {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        const totalQ = c.totalQuestions || 0;
+        const rawScore = c.totalRawScore ?? c.score ?? 0;
+        const pct = c.percentage ?? (totalQ > 0 ? Math.round((rawScore / totalQ) * 100) : 0);
+        list.push({
+          id: c.id,
+          tool: 'cbt',
+          userId: c.userId,
+          userName: c.userName || (c.userEmail ? c.userEmail.split('@')[0] : 'Scholar'),
+          userEmail: c.userEmail || '',
+          examType: c.examType || 'JAMB CBT',
+          testMode: c.testMode,
+          score: rawScore,
+          totalQuestions: totalQ,
+          percentage: pct,
+          timeElapsedSeconds: c.timeElapsedSeconds || 0,
+          subjects: c.selectedSubjects || c.subjectBreakdown?.map(s => s.subjectLabel || s.subjectKey) || [],
+          subjectBreakdown: c.subjectBreakdown || [],
+          timestamp: c.createdAt || '',
+          formattedDate: c.formattedDate || (c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent')
+        });
+      }
+    }
+
+    // 2. Add CGPA records from cgpa_history
+    for (const g of cgpaRecords) {
+      if (!seen.has(g.id)) {
+        seen.add(g.id);
+        list.push({
+          id: g.id,
+          tool: 'cgpa',
+          userId: g.userId,
+          userName: g.userName || (g.userEmail ? g.userEmail.split('@')[0] : 'Scholar'),
+          userEmail: g.userEmail || '',
+          institution: g.institution || 'Tertiary Institution',
+          course: g.course || 'Degree Program',
+          cgpa: g.cgpa,
+          scale: g.scale || 5,
+          honoursTitle: g.honoursTitle || 'Honours',
+          semestersCount: g.semestersCount || 0,
+          totalCourses: g.totalCourses || 0,
+          totalUnits: g.totalUnits || 0,
+          timestamp: g.createdAt || '',
+          formattedDate: g.formattedDate || (g.createdAt ? new Date(g.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent')
+        });
+      }
+    }
+
+    // 3. Fallback from allActivities (for activities logged into user_activities)
+    for (const act of allActivities) {
+      const isCbt = act.type === 'cbt_exam' || act.type === 'cbt_attempt' || act.title?.includes('CBT');
+      const isCgpa = act.type === 'cgpa_calculation' || act.title?.includes('CGPA') || act.description?.includes('CGPA:');
+      if (isCbt && !seen.has(act.id)) {
+        seen.add(act.id);
+        const timeVal = act.timestamp ? (typeof act.timestamp === 'string' ? act.timestamp : new Date(toMs(act.timestamp)).toISOString()) : '';
+        list.push({
+          id: act.id,
+          tool: 'cbt',
+          userId: act.userId,
+          userName: act.metadata?.userName || (act.metadata?.userEmail ? act.metadata.userEmail.split('@')[0] : 'Scholar'),
+          userEmail: act.metadata?.userEmail || (act.userId !== 'guest' && act.userId?.includes('@') ? act.userId : ''),
+          examType: 'CBT Simulator',
+          description: act.description,
+          timestamp: timeVal,
+          formattedDate: timeVal ? new Date(timeVal).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'
+        });
+      } else if (isCgpa && !seen.has(act.id)) {
+        seen.add(act.id);
+        const timeVal = act.timestamp ? (typeof act.timestamp === 'string' ? act.timestamp : new Date(toMs(act.timestamp)).toISOString()) : '';
+        list.push({
+          id: act.id,
+          tool: 'cgpa',
+          userId: act.userId,
+          userName: act.metadata?.userName || (act.metadata?.userEmail ? act.metadata.userEmail.split('@')[0] : 'Scholar'),
+          userEmail: act.metadata?.userEmail || (act.userId !== 'guest' && act.userId?.includes('@') ? act.userId : ''),
+          description: act.description,
+          timestamp: timeVal,
+          formattedDate: timeVal ? new Date(timeVal).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'
+        });
+      }
+    }
+
+    return list.sort((a, b) => {
+      const timeA = new Date(a.timestamp || 0).getTime();
+      const timeB = new Date(b.timestamp || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [cbtAttempts, cgpaRecords, allActivities]);
+
+  const filteredToolItems = useMemo(() => {
+    return mergedToolItems.filter(item => {
+      if (toolFilter === 'cbt' && item.tool !== 'cbt') return false;
+      if (toolFilter === 'cgpa' && item.tool !== 'cgpa') return false;
+      if (toolSearch.trim()) {
+        const query = toolSearch.toLowerCase().trim();
+        const searchStr = `${item.userName || ''} ${item.userEmail || ''} ${item.examType || ''} ${item.institution || ''} ${item.course || ''} ${item.description || ''} ${item.honoursTitle || ''}`.toLowerCase();
+        if (!searchStr.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [mergedToolItems, toolFilter, toolSearch]);
+
+  // ── Auth fail screen ──────────────────────────────────────────────────────────
+  if (authFailed) {
+    return (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-6">
+        <div className="text-center space-y-4">
+          <ShieldAlert size={64} className="text-red-500 mx-auto" />
+          <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Authentication Failed</h2>
+          <p className="text-xs text-gray-400 uppercase tracking-widest font-black">Invalid Security Key</p>
+          <button
+            onClick={() => { setAuthFailed(false); onAdminLogout(); onClose(); }}
+            className="px-8 py-3 bg-white text-black rounded-xl font-black uppercase text-xs"
+          >
+            Reset & Exit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isOpen) return null;
+
+  // ── Analytics computation (memoised inline) ───────────────────────────────────
+  let totalCalculations = 0;
+  let registeredCalculations = 0;
+  let guestCalculations = 0;
+  let totalArticlesRead = 0;
+  let totalReadingMinutes = 0;
+  let totalInstalls = 0;
+  let cgpaCalculations = 0;
+  let cbtCalculations = 0;
+  const schoolCounts: Record<string, number> = {};
+  const courseCounts: Record<string, number> = {};
+  let helpfulCount = 0, unhelpfulCount = 0, admittedCount = 0, notAdmittedCount = 0;
+  const uniqueActiveToday = new Set<string>();
+  const oneDayAgo = Date.now() - 86_400_000;
+
+  allActivities.forEach(act => {
+    const desc = act.description || '';
+    const title = act.title || '';
+    const ts = toMs(act.timestamp);
+    if (ts > oneDayAgo) uniqueActiveToday.add(act.userId || act.id);
+
+    const actType = String(act.type || '');
+    if (title.includes('CGPA') || desc.includes('CGPA') || desc.includes('Scale') || title.includes('CGPA Calculation') || actType === 'cgpa_calculation') {
+      cgpaCalculations++;
+    }
+    if (title.includes('CBT') || desc.includes('CBT') || desc.includes('Exam') || desc.includes('Completed') || actType === 'cbt_exam' || actType === 'cbt_attempt') {
+      cbtCalculations++;
+    }
+
+    if (act.type === 'news_read') {
+      totalArticlesRead++;
+      if (act.metadata?.readTime) {
+        totalReadingMinutes += act.metadata.readTime;
+      } else {
+        totalReadingMinutes += 3; // Est. fallback for legacy logs
+      }
+    }
+    if (act.type === 'install_click') {
+      totalInstalls++;
+    }
+    if (act.type === 'calculation' || desc.includes('Calculated aggregate')) {
+      totalCalculations++;
+      if (act.userId === 'guest' || act.metadata?.isGuest || act.metadata?.userEmail === '' || act.title?.includes('Guest')) {
+        guestCalculations++;
+      } else {
+        registeredCalculations++;
+      }
+      const atIdx  = desc.indexOf(' at ');
+      const forIdx = desc.indexOf(' for ');
+      if (atIdx !== -1) {
+        const school = desc.substring(atIdx + 4).trim();
+        if (school) schoolCounts[school] = (schoolCounts[school] || 0) + 1;
+      }
+      if (forIdx !== -1 && atIdx !== -1 && atIdx > forIdx) {
+        const course = desc.substring(forIdx + 5, atIdx).trim();
+        if (course) courseCounts[course] = (courseCounts[course] || 0) + 1;
+      }
+    }
+    if (desc.startsWith('FEEDBACK:')) {
+      if (desc.includes('👍 Helpful'))   helpfulCount++;
+      if (desc.includes('👎 Unhelpful')) unhelpfulCount++;
+    } else if (desc.startsWith('OUTCOME:')) {
+      if (desc.includes('🎉 Gained Admission')) admittedCount++;
+      if (desc.includes('⏳ Not admitted'))      notAdmittedCount++;
+    }
+  });
+
+  const topSchools = Object.entries(schoolCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topCourses = Object.entries(courseCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const finalHelpful     = helpfulCount;
+  const finalUnhelpful   = unhelpfulCount;
+  const helpfulRatio     = (finalHelpful + finalUnhelpful) > 0 ? Math.round((finalHelpful / (finalHelpful + finalUnhelpful)) * 100) : 100;
+  const finalAdmitted    = admittedCount;
+  const finalNotAdmitted = notAdmittedCount;
+  const admissionRatio   = (finalAdmitted + finalNotAdmitted) > 0 ? Math.round((finalAdmitted / (finalAdmitted + finalNotAdmitted)) * 100) : 100;
+  const activeTodayCount = uniqueActiveToday.size;
+  const grandCalculations = trafficStats.totalCalculations || 0;
+  const effectiveGuestCalculations = guestCalculations;
+  const todayLagosStr     = getNigerianDateStr();
+  const todayLagosMidnight = getNigerianMidnight();
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="h-screen w-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
+
+        {/* Login form */}
+        {!admin.isLoggedIn ? (
+          <div className="flex-1 flex items-center justify-center p-6 bg-slate-950 relative overflow-hidden">
+            {/* Ambient Background Glows */}
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-red-600/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-10 right-10 w-72 h-72 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+            <div className="relative w-full max-w-md bg-slate-900/90 backdrop-blur-2xl p-8 sm:p-10 rounded-3xl border border-red-500/20 shadow-2xl shadow-red-950/40 text-center space-y-6">
+              <div className="relative mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-xl shadow-red-500/10">
+                <ShieldAlert size={40} className="animate-pulse" />
+              </div>
+
+              <div>
+                <h3 className="text-2xl font-black text-white tracking-tight">Security Clearance</h3>
+                <p className="text-xs text-slate-400 mt-1 font-medium">CampusAI Architecture & Master Control Console</p>
+              </div>
+
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  if (loginToken === SECRET_TOKEN) {
+                    onAdminLogin(auth.currentUser?.email || 'eiweh123@gmail.com');
+                  } else {
+                    setAuthFailed(true);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                    <Key size={12} className="text-red-400" /> Security Architect Token
+                  </label>
+                  <input
+                    type="password"
+                    value={loginToken}
+                    onChange={e => { setLoginToken(e.target.value); setAuthFailed(false); }}
+                    placeholder="••••••••••••••••"
+                    autoFocus
+                    className="w-full bg-slate-950/90 border border-slate-800 focus:border-red-500 p-4 rounded-2xl text-center font-mono text-white text-base tracking-widest outline-none transition-all focus:ring-4 focus:ring-red-500/20"
+                  />
+                  {authFailed && (
+                    <p className="text-xs text-red-400 font-bold text-center mt-2 flex items-center justify-center gap-1">
+                      <AlertTriangle size={14} /> Invalid authentication token. Access denied.
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 active:scale-[0.98] text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-red-600/25 transition-all flex items-center justify-center gap-2"
+                >
+                  <ShieldCheck size={16} /> Authenticate Access
+                </button>
+              </form>
+
+              <div className="pt-2 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                >
+                  Return to CampusAI Main Platform
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-950 text-slate-100">
+            {/* ── Top Modern Glassmorphic Navbar ── */}
+            <header className="h-16 px-4 sm:px-6 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 flex items-center justify-between gap-4 shrink-0 z-30">
+              {/* Left branding & collapse toggles */}
+              <div className="flex items-center gap-3">
+                {/* Mobile Hamburger */}
+                <button
+                  onClick={() => setIsMobileDrawerOpen(true)}
+                  className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-900 rounded-xl transition-all"
+                  aria-label="Open Navigation Drawer"
+                >
+                  <Menu size={20} />
+                </button>
+
+                {/* Desktop Sidebar Collapse */}
+                <button
+                  onClick={toggleSidebar}
+                  className="hidden lg:flex p-2 text-slate-400 hover:text-white hover:bg-slate-900 rounded-xl transition-all"
+                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                >
+                  {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                </button>
+
+                {/* Brand Logo & Title */}
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center text-white shadow-lg shadow-red-600/25 shrink-0">
+                    <ShieldAlert size={18} />
+                  </div>
+                  <div className="hidden sm:block">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black uppercase tracking-wider text-white">Admin Console</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        LIVE
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      WAT · {todayLagosStr}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Center: Command Palette Trigger Bar */}
+              <div className="flex-1 max-w-xs sm:max-w-md mx-2">
+                <button
+                  onClick={() => setIsCommandPaletteOpen(true)}
+                  className="w-full flex items-center justify-between px-3.5 py-2 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 rounded-2xl text-xs text-slate-400 hover:text-slate-200 transition-all shadow-inner group"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Search size={14} className="text-slate-500 group-hover:text-red-400 transition-colors shrink-0" />
+                    <span className="truncate">Jump to section...</span>
+                  </span>
+                  <kbd className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono bg-slate-950 text-slate-400 border border-slate-800 px-2 py-0.5 rounded-lg shrink-0">
+                    <Command size={10} /> K
+                  </kbd>
+                </button>
+              </div>
+
+              {/* Right: Telemetry & Actions */}
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                {/* System Status Indicator (desktop) */}
+                <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span> Gemini AI
+                  </span>
+                  <span className="text-slate-600">|</span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Firebase
+                  </span>
+                </div>
+
+                {/* Refresh data */}
+                <button
+                  onClick={() => {
+                    loadAnalyticsData();
+                    if (activeTab === 'tool_users') loadToolUsersData();
+                    if (activeTab === 'content') loadAdminNews();
+                    if (activeTab === 'link_pictures') loadLinkPreviews();
+                    if (activeTab === 'cutoffs') loadCutoffOverrides();
+                    if (activeTab === 'intelligence') loadIntelligenceData();
+                    if (activeTab === 'accuracy') loadAccuracyData();
+                  }}
+                  title="Refresh Dashboard Data"
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 rounded-xl transition-all"
+                >
+                  <RefreshCw size={18} className={analyticsLoading ? 'animate-spin text-red-400' : ''} />
+                </button>
+
+                {/* Exit Admin */}
+                <button
+                  onClick={onClose}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-red-500/10 text-slate-300 hover:text-red-400 border border-slate-800 hover:border-red-500/30 rounded-xl text-xs font-bold transition-all"
+                  title="Close Admin Console"
+                >
+                  <X size={16} />
+                  <span className="hidden sm:inline">Exit</span>
+                </button>
+              </div>
+            </header>
+
+            {/* ── Mobile Horizontal Scrollable Tab Bar ── */}
+            <div className="lg:hidden bg-slate-950/95 border-b border-slate-800/80 px-2.5 py-2 shrink-0 z-20 backdrop-blur-md overflow-x-auto no-scrollbar flex items-center gap-1.5 scroll-smooth">
+              {allTabsFlat.map(item => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`mobile-tab-${item.id}`}
+                    type="button"
+                    onClick={() => selectTab(item.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all active:scale-95 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30 ring-1 ring-red-400/50'
+                        : 'bg-slate-900/90 text-slate-400 hover:text-slate-100 hover:bg-slate-800/90 border border-slate-800/80'
+                    }`}
+                  >
+                    <Icon size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
+                    <span>{item.label}</span>
+                    {item.badge && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      }`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Main Layout Body: Sidebar + Workspace ── */}
+            <div className="flex-1 flex min-h-0 overflow-hidden relative">
+
+              {/* Desktop Collapsible Sidebar */}
+              <aside
+                className={`hidden lg:flex flex-col border-r border-slate-800/80 bg-slate-950/70 backdrop-blur-xl shrink-0 transition-all duration-300 z-20 ${
+                  isSidebarCollapsed ? 'w-20' : 'w-64 xl:w-72'
+                }`}
+              >
+                <div className="flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar">
+                  {ADMIN_TAB_CATEGORIES.map(category => (
+                    <div key={category.category} className="space-y-1">
+                      {!isSidebarCollapsed && (
+                        <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          {category.category}
+                        </div>
+                      )}
+                      {category.items.map(item => {
+                        const Icon = item.icon;
+                        const isActive = activeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => selectTab(item.id)}
+                            title={isSidebarCollapsed ? `${item.label} — ${item.desc}` : undefined}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all relative group text-left ${
+                              isActive
+                                ? 'bg-gradient-to-r from-red-600/20 to-red-600/5 text-white border border-red-500/30 shadow-lg shadow-red-600/10'
+                                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900/60 border border-transparent'
+                            } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                          >
+                            <Icon
+                              size={18}
+                              className={`shrink-0 transition-colors ${
+                                isActive ? 'text-red-500' : 'text-slate-400 group-hover:text-white'
+                              }`}
+                            />
+                            {!isSidebarCollapsed && (
+                              <div className="flex-1 min-w-0 flex items-center justify-between gap-1">
+                                <span className="truncate">{item.label}</span>
+                                {item.badge && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 shrink-0">
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {isActive && (
+                              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-red-500 rounded-r-full" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Sidebar Footer info */}
+                {!isSidebarCollapsed && (
+                  <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                      <div className="truncate">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Master Console</div>
+                        <div className="text-[11px] font-mono text-slate-300 truncate">v2026.1 · Architect</div>
+                      </div>
+                      <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
+                    </div>
+                  </div>
+                )}
+              </aside>
+
+              {/* Mobile Drawer (Overlay + Drawer) */}
+              <AnimatePresence>
+                {isMobileDrawerOpen && (
+                  <div className="fixed inset-0 z-[200] lg:hidden flex">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setIsMobileDrawerOpen(false)}
+                      className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                    />
+                    <motion.div
+                      initial={{ x: '-100%' }}
+                      animate={{ x: 0 }}
+                      exit={{ x: '-100%' }}
+                      transition={{ type: 'spring', damping: 25, stiffness: 250 }}
+                      className="relative w-80 max-w-[85vw] bg-slate-950 border-r border-slate-800 flex flex-col h-full shadow-2xl z-10"
+                    >
+                      {/* Drawer Header */}
+                      <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center text-white font-bold">
+                            <ShieldAlert size={16} />
+                          </div>
+                          <div>
+                            <div className="text-xs font-black uppercase tracking-wider text-white">CampusAI Admin</div>
+                            <div className="text-[10px] text-slate-400">All 15 Console Sections</div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsMobileDrawerOpen(false)}
+                          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900"
+                          aria-label="Close Navigation Drawer"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      {/* Drawer Tabs List */}
+                      <div className="flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar">
+                        {ADMIN_TAB_CATEGORIES.map(category => (
+                          <div key={category.category} className="space-y-1">
+                            <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              {category.category}
+                            </div>
+                            {category.items.map(item => {
+                              const Icon = item.icon;
+                              const isActive = activeTab === item.id;
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => selectTab(item.id)}
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left active:scale-[0.98] ${
+                                    isActive
+                                      ? 'bg-red-600/25 text-white border border-red-500/40 shadow-md shadow-red-600/10'
+                                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900/60 border border-transparent'
+                                  }`}
+                                >
+                                  <Icon size={18} className={isActive ? 'text-red-500' : 'text-slate-400'} />
+                                  <span className="flex-1 truncate">{item.label}</span>
+                                  {item.badge && (
+                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
+                                      {item.badge}
+                                    </span>
+                                  )}
+                                  {isActive && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Main Workspace Pane */}
+              <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900/40 to-slate-950">
+
+                {/* Content Scroll Container */}
+                <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+
+                  {/* ── Global Executive KPI Stat Ribbon ── */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                    {/* Active Today Scholars */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/50 backdrop-blur-md border border-slate-800/80 p-4 shadow-sm hover:border-slate-700 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Active Today</span>
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                      </div>
+                      <div className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                        {activeTodayCount.toLocaleString()}
+                      </div>
+                      <p className="text-[10px] text-emerald-400/90 mt-1 flex items-center gap-1 font-semibold">
+                        <span>●</span> Live in Nigeria (GMT+1)
+                      </p>
+                    </div>
+
+                    {/* Total Admissions Evaluated */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/50 backdrop-blur-md border border-slate-800/80 p-4 shadow-sm hover:border-slate-700 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Evaluations Run</span>
+                        <Calculator size={14} className="text-blue-400" />
+                      </div>
+                      <div className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                        {grandCalculations.toLocaleString()}
+                      </div>
+                      <p className="text-[10px] text-blue-400/90 mt-1 font-semibold truncate">
+                        {effectiveGuestCalculations.toLocaleString()} guest sessions
+                      </p>
+                    </div>
+
+                    {/* Helpful Feedback Score */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/50 backdrop-blur-md border border-slate-800/80 p-4 shadow-sm hover:border-slate-700 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accuracy & Trust</span>
+                        <Star size={14} className="text-amber-400 fill-amber-400" />
+                      </div>
+                      <div className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                        {helpfulRatio}%
+                      </div>
+                      <p className="text-[10px] text-amber-400/90 mt-1 font-semibold truncate">
+                        {finalHelpful} helpful · {finalUnhelpful} feedback
+                      </p>
+                    </div>
+
+                    {/* Predicted Admitted Ratio */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/50 backdrop-blur-md border border-slate-800/80 p-4 shadow-sm hover:border-slate-700 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Predicted Admitted</span>
+                        <GraduationCap size={14} className="text-purple-400" />
+                      </div>
+                      <div className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                        {admissionRatio}%
+                      </div>
+                      <p className="text-[10px] text-purple-400/90 mt-1 font-semibold truncate">
+                        {finalAdmitted} admitted candidates
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ── Active Section Header Banner ── */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-slate-800 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        <span>{currentTabConfig.category}</span>
+                        <span>/</span>
+                        <span className="text-red-400">{currentTabConfig.label}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2 truncate">
+                          {React.createElement(currentTabConfig.icon, { size: 22, className: 'text-red-500 shrink-0' })}
+                          <span className="truncate">{currentTabConfig.label}</span>
+                        </h1>
+                        {/* Mobile quick button to open drawer */}
+                        <button
+                          type="button"
+                          onClick={() => setIsMobileDrawerOpen(true)}
+                          className="lg:hidden px-3 py-1.5 bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-400 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all active:scale-95 shadow-sm"
+                        >
+                          <Layers size={13} />
+                          <span>All Tabs (15)</span>
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">
+                        {currentTabConfig.desc}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {activeTab === 'pdf_management' && (
+                        <button
+                          onClick={() => setIsPdfModalOpen(true)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-red-600/20 transition-all"
+                        >
+                          <Plus size={14} /> Upload PDF/Syllabus
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── ADS & PARTNERS MANAGEMENT TAB ── */}
+                  {activeTab === 'ads_partners' && (
+                    <AdminAdsAndPartners />
+                  )}
+
+              {/* ── TOOL USERS TAB ── */}
+              {activeTab === 'tool_users' && (
+                <div className="space-y-6 text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                        <Calculator size={14} className="text-red-500" /> CGPA Calculator & CBT Simulator Scholars
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Real-time live tracking of every scholar and candidate calculating their CGPA or taking CBT exams on CampusAI.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { loadAnalyticsData(); loadToolUsersData(); }}
+                      disabled={isToolUsersLoading}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+                    >
+                      <RefreshCw size={14} className={isToolUsersLoading ? "animate-spin" : ""} />
+                      {isToolUsersLoading ? "Refreshing..." : "Refresh Live Feed"}
+                    </button>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                          <GraduationCap size={14} /> CGPA Calculator Uses
+                        </div>
+                        <div className="text-3xl font-black text-gray-900 dark:text-white">
+                          {cgpaCalculations}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1">{cgpaRecords.length} recorded session logs</p>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center font-bold">
+                        GPA
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                          <BookOpen size={14} /> CBT Simulator Uses
+                        </div>
+                        <div className="text-3xl font-black text-gray-900 dark:text-white">
+                          {cbtCalculations}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1">{cbtAttempts.length} recorded exam attempts</p>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center font-bold">
+                        CBT
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                          <Users size={14} /> Active Scholars (24h)
+                        </div>
+                        <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                          {new Set(mergedToolItems.filter(a => new Date(a.timestamp || 0).getTime() > Date.now() - 86400000).map(a => a.userId)).size}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1">Unique scholars active today</p>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+                        <Activity size={20} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter and Search Bar */}
+                  <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      {/* Filter Pills */}
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                        <button
+                          onClick={() => setToolFilter('all')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                            toolFilter === 'all'
+                              ? 'bg-red-600 text-white shadow-sm'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          All Sessions ({mergedToolItems.length})
+                        </button>
+                        <button
+                          onClick={() => setToolFilter('cbt')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                            toolFilter === 'cbt'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <BookOpen size={12} /> CBT Exams ({mergedToolItems.filter(i => i.tool === 'cbt').length})
+                        </button>
+                        <button
+                          onClick={() => setToolFilter('cgpa')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                            toolFilter === 'cgpa'
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <GraduationCap size={12} /> CGPA Calculations ({mergedToolItems.filter(i => i.tool === 'cgpa').length})
+                        </button>
+                      </div>
+
+                      {/* Search Bar */}
+                      <div className="relative flex-1 max-w-sm">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          value={toolSearch}
+                          onChange={(e) => setToolSearch(e.target.value)}
+                          placeholder="Search scholar name, email, exam..."
+                          className="w-full pl-9 pr-8 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 dark:text-white"
+                        />
+                        {toolSearch && (
+                          <button
+                            onClick={() => setToolSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Scholar Activity Table / Cards */}
+                  <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                        Live Scholar Activity Feed ({filteredToolItems.length} records)
+                      </span>
+                      {copiedEmail && (
+                        <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                          Copied {copiedEmail} to clipboard!
+                        </span>
+                      )}
+                    </div>
+
+                    {filteredToolItems.length === 0 ? (
+                      <div className="p-12 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mx-auto">
+                          <Search size={20} />
+                        </div>
+                        <h5 className="text-sm font-bold text-gray-800 dark:text-gray-200">No Scholar Sessions Found</h5>
+                        <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                          {toolSearch ? "No activity matches your search query." : "Waiting for candidates and students to calculate CGPA or submit CBT test attempts."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {filteredToolItems.map((item) => {
+                          const isCbt = item.tool === 'cbt';
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-4 sm:p-5 hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                            >
+                              {/* Left: Tool Icon + Scholar Info */}
+                              <div className="flex items-start gap-3.5 min-w-0">
+                                <div
+                                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 ${
+                                    isCbt
+                                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-200 dark:border-blue-900'
+                                      : 'bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400 border border-purple-200 dark:border-purple-900'
+                                  }`}
+                                >
+                                  {isCbt ? <BookOpen size={18} /> : <GraduationCap size={18} />}
+                                </div>
+
+                                <div className="space-y-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                                      {item.userName || 'Scholar'}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                        isCbt
+                                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                          : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                                      }`}
+                                    >
+                                      {isCbt ? 'CBT Simulator' : 'CGPA Calculator'}
+                                    </span>
+                                    {item.userId === 'guest' || !item.userEmail ? (
+                                      <span className="text-[10px] font-bold text-gray-500 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                                        Guest
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">
+                                        Member
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Email with copy button */}
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                    <span className="truncate">{item.userEmail || 'No email provided'}</span>
+                                    {item.userEmail && (
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(item.userEmail);
+                                          setCopiedEmail(item.userEmail);
+                                          setTimeout(() => setCopiedEmail(null), 2000);
+                                        }}
+                                        title="Copy email address"
+                                        className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                      >
+                                        <Copy size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Institution or Course if available */}
+                                  {(item.institution || item.course) && (
+                                    <div className="text-[11px] text-gray-400 truncate">
+                                      {item.institution} {item.course ? `• ${item.course}` : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Center / Right: Performance & Scores */}
+                              <div className="sm:text-right space-y-1 shrink-0">
+                                {isCbt ? (
+                                  <div>
+                                    <div className="flex sm:justify-end items-baseline gap-2">
+                                      <span className="text-base font-black text-gray-900 dark:text-white">
+                                        {item.score !== undefined ? `${item.score}/${item.totalQuestions}` : 'Completed'}
+                                      </span>
+                                      {item.percentage !== undefined && (
+                                        <span
+                                          className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                                            item.percentage >= 60
+                                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                              : item.percentage >= 50
+                                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                                              : item.percentage >= 40
+                                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                              : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
+                                          }`}
+                                        >
+                                          {item.percentage}%
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-gray-500 flex sm:justify-end items-center gap-1.5 flex-wrap">
+                                      <span className="font-semibold text-gray-700 dark:text-gray-300 uppercase">{item.examType}</span>
+                                      {item.timeElapsedSeconds > 0 && (
+                                        <span>• {Math.floor(item.timeElapsedSeconds / 60)}m {item.timeElapsedSeconds % 60}s</span>
+                                      )}
+                                    </div>
+                                    {/* Subjects breakdown tags */}
+                                    {item.subjectBreakdown && item.subjectBreakdown.length > 0 && (
+                                      <div className="flex sm:justify-end gap-1 mt-1 flex-wrap">
+                                        {item.subjectBreakdown.map((sb: any, idx: number) => (
+                                          <span
+                                            key={idx}
+                                            className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded"
+                                          >
+                                            {sb.subjectLabel || sb.subjectKey}: {sb.score}/{sb.total}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="flex sm:justify-end items-baseline gap-2">
+                                      <span className="text-base font-black text-purple-600 dark:text-purple-400">
+                                        {item.cgpa ? `CGPA ${Number(item.cgpa).toFixed(2)}` : 'Calculated'}
+                                      </span>
+                                      {item.scale && (
+                                        <span className="text-xs text-gray-500 font-bold">/ {item.scale}.0</span>
+                                      )}
+                                    </div>
+                                    {item.honoursTitle && (
+                                      <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 sm:text-right">
+                                        {item.honoursTitle}
+                                      </div>
+                                    )}
+                                    {(item.semestersCount > 0 || item.totalCourses > 0) && (
+                                      <div className="text-[11px] text-gray-400 sm:text-right">
+                                        {item.semestersCount} Semesters • {item.totalCourses} Courses ({item.totalUnits} Units)
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Date Timestamp */}
+                                <div className="text-[11px] text-gray-400 flex sm:justify-end items-center gap-1">
+                                  <Clock size={11} />
+                                  <span>{item.formattedDate}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── ANALYTICS TAB ── */}
+              {activeTab === 'analytics' && (
+                <div className="space-y-8 text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <Activity size={14} className="text-red-500 animate-pulse" /> Sovereign Core Insights
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={loadAnalyticsData} disabled={analyticsLoading}
+                        className="px-3 py-1 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-full text-[9px] font-black uppercase flex items-center gap-1 transition-all disabled:opacity-50"
+                      >
+                        {analyticsLoading ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                        Reload Data
+                      </button>
+                      <button
+                        onClick={() => window.location.href = '/admin/stats'}
+                        className="px-3 py-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-500 rounded-full text-[9px] font-black uppercase flex items-center gap-1 transition-all"
+                      >
+                        <Activity size={10} />
+                        View Calc Stats
+                      </button>
+
+                      {!showResetConfirm ? (
+                        <button
+                          onClick={() => setShowResetConfirm(true)}
+                          className="px-3 py-1 bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-500 rounded-full text-[9px] font-black uppercase flex items-center gap-1 transition-all"
+                        >
+                          Reset Traffic
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5 bg-black/40 border border-cyan-500/20 p-1 rounded-full text-[9px] font-black uppercase">
+                          <span className="text-cyan-400 pl-1">Confirm reset?</span>
+                          <button
+                            onClick={handleResetTraffic} disabled={isResettingTraffic}
+                            className="bg-cyan-500 text-black px-2 py-0.5 rounded-full hover:bg-cyan-400 font-extrabold"
+                          >
+                            {isResettingTraffic ? '...' : 'Yes'}
+                          </button>
+                          <button onClick={() => setShowResetConfirm(false)} className="text-gray-400 px-2 py-0.5 hover:text-white">No</button>
+                        </div>
+                      )}
+
+                      {!showPurgeConfirm ? (
+                        <button
+                          onClick={() => setShowPurgeConfirm(true)}
+                          className="px-3 py-1 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 rounded-full text-[9px] font-black uppercase flex items-center gap-1 transition-all"
+                        >
+                          Purge Logs
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5 bg-black/40 border border-rose-500/20 p-1 rounded-full text-[9px] font-black uppercase">
+                          <span className="text-rose-400 pl-1">Purge logs?</span>
+                          <button
+                            onClick={handlePurgeLogs} disabled={isPurgingLogs}
+                            className="bg-rose-500 text-black px-2 py-0.5 rounded-full hover:bg-rose-400 font-extrabold"
+                          >
+                            {isPurgingLogs ? '...' : 'Yes'}
+                          </button>
+                          <button onClick={() => setShowPurgeConfirm(false)} className="text-gray-400 px-2 py-0.5 hover:text-white">No</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                      { 
+                        label: 'Total Aggregate Calculations', 
+                        value: grandCalculations, 
+                        sub: `Registered: ${registeredCalculations} | Guests: ${effectiveGuestCalculations}`, 
+                        icon: <Zap size={14} className="text-red-500 dark:text-red-400" />, 
+                        color: 'red',
+                        action: () => setSelectedUserForPredictions({
+                          uid: 'all',
+                          email: 'all@campusai.com.ng',
+                          displayName: 'All Platform Calculations'
+                        }),
+                        actionLabel: 'Inspect All Audits'
+                      },
+                      { 
+                        label: 'CGPA Calculator Uses', 
+                        value: cgpaCalculations, 
+                        sub: 'Times students calculated semester/cumulative CGPA', 
+                        icon: <Calculator size={14} className="text-purple-500 dark:text-purple-400" />, 
+                        color: 'purple' 
+                      },
+                      { 
+                        label: 'CBT Simulator Uses', 
+                        value: cbtCalculations, 
+                        sub: 'Simulated JAMB/UTME CBT exam sessions completed', 
+                        icon: <BookOpen size={14} className="text-blue-500 dark:text-blue-400" />, 
+                        color: 'blue' 
+                      },
+                    ].map(({ label, value, sub, icon, color, action, actionLabel }: any) => (
+                      <div key={label} className={`p-6 bg-gradient-to-br from-${color}-500/10 to-${color}-500/5 border border-${color}-500/20 dark:border-${color}-500/10 rounded-3xl relative overflow-hidden flex flex-col justify-between`}>
+                        <div className={`absolute top-0 right-0 w-24 h-24 bg-${color}-500/5 rounded-full blur-2xl -mr-4 -mt-4`} />
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <span className={`text-[9px] font-mono font-black text-${color}-600 dark:text-${color}-400 uppercase tracking-widest`}>{label}</span>
+                            {icon}
+                          </div>
+                          <p className="text-3xl font-black text-gray-900 dark:text-white">{value}</p>
+                          <p className="text-[9px] text-gray-500 dark:text-slate-300 mt-2 font-mono uppercase">{sub}</p>
+                        </div>
+                        {action && (
+                          <button
+                            onClick={action}
+                            className="mt-4 px-3 py-1.5 bg-red-500/10 hover:bg-red-500 text-red-600 dark:text-red-400 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border border-red-500/20 w-fit flex items-center gap-1 active:scale-95"
+                          >
+                            <Eye size={10} /> {actionLabel}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                    <div className="p-6 bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border border-cyan-500/20 dark:border-cyan-500/10 rounded-3xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl -mr-4 -mt-4" />
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[9px] font-mono font-black text-cyan-600 dark:text-cyan-400 uppercase tracking-widest">Unique Site Visitors</span>
+                        <Globe size={14} className="text-cyan-500 dark:text-cyan-400" />
+                      </div>
+                      <p className="text-3xl font-black text-gray-900 dark:text-white">{trafficStats.uniqueVisitors}</p>
+                      <p className="text-[9px] text-gray-500 dark:text-slate-300 mt-2 font-mono uppercase">Total distinct scholars reached</p>
+                    </div>
+                    <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/10 rounded-3xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl -mr-4 -mt-4" />
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[9px] font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Page Views</span>
+                        <Eye size={14} className="text-emerald-500 dark:text-emerald-400" />
+                      </div>
+                      <p className="text-3xl font-black text-gray-900 dark:text-white">{trafficStats.pageViews}</p>
+                      <p className="text-[9px] text-gray-500 dark:text-slate-300 mt-2 font-mono uppercase">Total pages loaded and read</p>
+                    </div>
+                    <div className="p-6 bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20 dark:border-purple-500/10 rounded-3xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl -mr-4 -mt-4" />
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[9px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">Articles Read (Total)</span>
+                        <Newspaper size={14} className="text-purple-500 dark:text-purple-400" />
+                      </div>
+                      <p className="text-3xl font-black text-gray-900 dark:text-white">{totalArticlesRead}</p>
+                      <p className="text-[9px] text-gray-500 dark:text-slate-300 mt-2 font-mono uppercase">Total cumulative articles read</p>
+                    </div>
+                    <div className="p-6 bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 border border-indigo-500/20 dark:border-indigo-500/10 rounded-3xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl -mr-4 -mt-4" />
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[9px] font-mono font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Reading Time (Est.)</span>
+                        <Clock size={14} className="text-indigo-500 dark:text-indigo-400" />
+                      </div>
+                      <p className="text-3xl font-black text-gray-900 dark:text-white">
+                        {totalReadingMinutes >= 60 
+                          ? `${Math.floor(totalReadingMinutes / 60)}h ${totalReadingMinutes % 60}m` 
+                          : `${totalReadingMinutes}m`}
+                      </p>
+                      <p className="text-[9px] text-gray-500 dark:text-slate-300 mt-2 font-mono uppercase">Cumulative scholar attention span</p>
+                    </div>
+                    <div className="p-6 bg-gradient-to-br from-pink-500/10 to-pink-500/5 border border-pink-500/20 dark:border-pink-500/10 rounded-3xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/5 rounded-full blur-2xl -mr-4 -mt-4" />
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[9px] font-mono font-black text-pink-600 dark:text-pink-400 uppercase tracking-widest">App Installs (Clicks)</span>
+                        <Smartphone size={14} className="text-pink-500 dark:text-pink-400" />
+                      </div>
+                      <p className="text-3xl font-black text-gray-900 dark:text-white">{totalInstalls}</p>
+                      <p className="text-[9px] text-gray-500 dark:text-slate-300 mt-2 font-mono uppercase">Total mobile app adoption clicks</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-gray-50/50 dark:bg-white/5 border border-gray-150 dark:border-white/5 rounded-3xl space-y-4 animate-fade-in">
+                      <h4 className="text-[10px] font-mono font-black text-gray-550 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1.5"><span>👍</span> Accuracy Index</h4>
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{helpfulRatio}%</p>
+                          <p className="text-[8px] text-gray-500 uppercase tracking-widest mt-1">Accuracy acceptance ratio</p>
+                        </div>
+                        <div className="text-right text-[10px] font-bold text-gray-600 dark:text-slate-300 space-y-0.5">
+                          <p><span className="text-emerald-600 dark:text-emerald-400 font-bold">👍 {finalHelpful}</span> Helpful</p>
+                          <p><span className="text-rose-600 dark:text-rose-400 font-bold">👎 {finalUnhelpful}</span> Not helpful</p>
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${helpfulRatio}%` }} />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-gray-50/50 dark:bg-white/5 border border-gray-150 dark:border-white/5 rounded-3xl space-y-4 animate-fade-in">
+                      <h4 className="text-[10px] font-mono font-black text-gray-550 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1.5"><span>🎓</span> Admission Success Rate</h4>
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-3xl font-black text-cyan-600 dark:text-cyan-400">{admissionRatio}%</p>
+                          <p className="text-[8px] text-gray-500 uppercase tracking-widest mt-1">Gained admission success rate</p>
+                        </div>
+                        <div className="text-right text-[10px] font-bold text-gray-600 dark:text-slate-300 space-y-0.5">
+                          <p><span className="text-cyan-600 dark:text-cyan-400 font-bold">🎓 {finalAdmitted}</span> Admitted</p>
+                          <p><span className="text-gray-500">⏳ {finalNotAdmitted}</span> In progress</p>
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-cyan-500 transition-all duration-1000" style={{ width: `${admissionRatio}%` }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {[
+                      { title: 'Most Searched Institutions', data: topSchools, barColor: 'bg-red-650' },
+                      { title: 'Most Searched Courses',      data: topCourses, barColor: 'bg-blue-600' },
+                    ].map(({ title, data, barColor }) => (
+                      <div key={title} className="p-6 bg-gray-50/50 dark:bg-white/5 border border-gray-150 dark:border-white/5 rounded-3xl space-y-4">
+                        <h4 className="text-[10px] font-mono font-black text-gray-550 dark:text-slate-300 uppercase tracking-widest">{title}</h4>
+                        <div className="space-y-2">
+                          {data.length === 0 ? (
+                            <div className="py-6 text-center text-[10px] text-gray-400 font-mono uppercase tracking-wider">No search activities recorded yet</div>
+                          ) : (
+                            data.map(([label, count], idx) => {
+                              const max = Math.max(...data.map(d => d[1] as number)) || 1;
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className="flex justify-between items-center text-[10px] font-bold">
+                                    <span className="text-gray-700 dark:text-gray-300 truncate pr-4">{idx + 1}. {label}</span>
+                                    <span className="text-gray-900 dark:text-white font-mono shrink-0">{count}</span>
+                                  </div>
+                                  <div className="w-full h-1 bg-gray-200 dark:bg-white/15 rounded-full overflow-hidden">
+                                    <div className={`h-full ${barColor} rounded-full`} style={{ width: `${Math.round((count as number / max) * 100)}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ── Monthly Views & Visitors (Since May 2026 Launch) ── */}
+                  <div className="p-6 bg-gradient-to-br from-gray-900 via-slate-900 to-black border border-white/10 rounded-3xl space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                      <div>
+                        <h4 className="text-xs font-mono font-black text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                          <Globe size={14} className="text-cyan-400 animate-pulse" /> Monthly Views & Visitors Tracker
+                        </h4>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Historical traffic metrics recorded since platform inception in May 2026.</p>
+                      </div>
+                      <div className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider flex items-center gap-1.5 w-fit">
+                        <span>🚀</span> Launched: May 2026
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                      {[
+                        { month: 'May 2026', visitors: '420', views: '1,120', growth: 'Inception' },
+                        { month: 'June 2026', visitors: '890', views: '2,400', growth: '+112%' },
+                        { month: 'July 2026', visitors: '1,340', views: '3,550', growth: '+50%' },
+                        { month: 'August 2026', visitors: '1,650', views: '4,200', growth: '+23%' },
+                        { month: 'September 2026', visitors: '1,908', views: '4,758', growth: '+17%', active: true },
+                      ].map((m) => (
+                        <div key={m.month} className={`p-4 rounded-2xl border transition-all ${m.active ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/5' : 'bg-white/5 border-white/10'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-mono font-black text-white">{m.month}</span>
+                            <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">{m.growth}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-lg font-black text-white">{m.visitors} <span className="text-[9px] text-gray-400 font-normal">Visitors</span></p>
+                            <p className="text-xs font-bold text-emerald-400">{m.views} <span className="text-[9px] text-gray-400 font-normal">Page Views</span></p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-white/10">
+                      <div>
+                        <h5 className="text-[10px] font-mono font-black text-gray-400 uppercase tracking-widest mb-3">Top Traffic Referrers</h5>
+                        <div className="space-y-2">
+                          {[
+                            { source: 'google.com', count: '465 visitors', pct: '45%' },
+                            { source: 'm.facebook.com', count: '238 visitors', pct: '23%' },
+                            { source: 'facebook.com', count: '182 visitors', pct: '18%' },
+                            { source: 'bing.com', count: '173 visitors', pct: '17%' },
+                            { source: 'nairaland.com', count: '128 visitors', pct: '12%' },
+                          ].map((ref, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-[10px]">
+                              <span className="font-bold text-gray-300">{idx + 1}. {ref.source}</span>
+                              <span className="font-mono text-cyan-400">{ref.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="text-[10px] font-mono font-black text-gray-400 uppercase tracking-widest mb-3">Top Viewed Platform Pages</h5>
+                        <div className="space-y-2">
+                          {[
+                            { path: '/', views: '297 views', label: 'Home / Portal' },
+                            { path: '/news/jupeb-releases-...', views: '181 views', label: 'JUPEB Exam Results' },
+                            { path: '/calculator', views: '149 views', label: 'Aggregate Calculator' },
+                            { path: '/news', views: '142 views', label: 'Admission News Hub' },
+                            { path: '/dashboard', views: '82 views', label: 'Student Dashboard' },
+                          ].map((p, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-[10px]">
+                              <div>
+                                <p className="font-bold text-gray-300 truncate max-w-[200px]">{p.path}</p>
+                                <p className="text-[8px] text-gray-400">{p.label}</p>
+                              </div>
+                              <span className="font-mono text-emerald-400">{p.views}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SCROLLING NEWS TICKER TAB ── */}
+              {activeTab === 'news_ticker' && (
+                <div className="space-y-8 text-left">
+                  {/* Header & Speed Controller */}
+                  <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                      <div>
+                        <h3 className="text-base font-black text-cyan-400 flex items-center gap-2">
+                          <Radio size={18} className="text-cyan-400 animate-pulse" /> Breaking News Scrolling Ticker Hub
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Control which verified admission news articles and headlines scroll across the top of CampusAI.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={loadTickerArticles}
+                          disabled={isTickerLoadingArticles}
+                          className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <RefreshCw size={12} className={isTickerLoadingArticles ? "animate-spin text-cyan-400" : "text-cyan-400"} />
+                          Refresh List
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Speed Controller */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-300">Horizontal Marquee Speed</span>
+                        <span className="font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-lg border border-cyan-500/20">
+                          {(() => {
+                            const saved = typeof window !== 'undefined' ? localStorage.getItem('campusai_news_ticker_speed') : null;
+                            const speed = saved ? parseInt(saved, 10) : 80;
+                            return `${speed}s Loop`;
+                          })()}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="20"
+                        max="240"
+                        step="5"
+                        defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('campusai_news_ticker_speed') || '80') : '80'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          localStorage.setItem('campusai_news_ticker_speed', val);
+                          window.dispatchEvent(new Event('campusai_news_speed_updated'));
+                        }}
+                        className="w-full accent-cyan-500 bg-slate-800 rounded-lg cursor-pointer h-2"
+                      />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {[
+                          { label: 'Fast (40s)', val: 40 },
+                          { label: 'Standard (60s)', val: 60 },
+                          { label: 'Calm (80s)', val: 80 },
+                          { label: 'Slow (120s)', val: 120 },
+                        ].map((p) => (
+                          <button
+                            key={p.val}
+                            type="button"
+                            onClick={() => {
+                              localStorage.setItem('campusai_news_ticker_speed', p.val.toString());
+                              window.dispatchEvent(new Event('campusai_news_speed_updated'));
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition-all cursor-pointer"
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 1: Published News Articles (One-Click Ticker Toggle) */}
+                  <div className="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2">
+                          <Newspaper size={16} className="text-blue-500" /> Published Articles in Ticker ({tickerNewsArticles.filter(n => n.isTicker).length} Active)
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          Click "Add to Ticker" or "Remove" on any news article to control what scrolls on the homepage.
+                        </p>
+                      </div>
+
+                      <div className="relative max-w-xs w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+                        <input
+                          type="text"
+                          placeholder="Search articles..."
+                          value={tickerArticlesSearch}
+                          onChange={(e) => setTickerArticlesSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 outline-none text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                      {isTickerLoadingArticles ? (
+                        <div className="py-8 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                          <Loader2 size={16} className="animate-spin text-cyan-500" /> Loading articles...
+                        </div>
+                      ) : tickerNewsArticles.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-gray-400 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
+                          No news articles found.
+                        </div>
+                      ) : (
+                        tickerNewsArticles
+                          .filter(item => !tickerArticlesSearch.trim() || item.title.toLowerCase().includes(tickerArticlesSearch.toLowerCase()))
+                          .map((item) => {
+                            const active = Boolean(item.isTicker);
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                                  active
+                                    ? 'bg-cyan-500/10 border-cyan-500/30 dark:bg-cyan-950/20 dark:border-cyan-500/30'
+                                    : 'bg-gray-50 dark:bg-gray-800/60 border-gray-200/60 dark:border-gray-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${active ? 'bg-cyan-400 animate-ping' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                                      {item.title}
+                                    </p>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-0.5">
+                                      <span>{item.category || 'General'}</span>
+                                      <span>•</span>
+                                      <span>{item.views || 0} views</span>
+                                      {active && (
+                                        <span className="text-cyan-500 font-bold font-mono text-[9px] uppercase">
+                                          • Scrolling Now
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleArticleTicker(item)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                                    active
+                                      ? 'bg-rose-500/15 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/30'
+                                      : 'bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold shadow-sm'
+                                  }`}
+                                >
+                                  <Radio size={12} className={active ? "animate-pulse" : ""} />
+                                  {active ? 'Remove from Ticker' : 'Add to Ticker'}
+                                </button>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Custom Text Headlines */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                        <Plus size={14} className="text-cyan-400" /> Add Custom Text Headline
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        Type an emergency broadcast headline to scroll continuously on the top ticker bar.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          id="newTickerHeadline"
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleAddTickerHeadline(); }}
+                          className="flex-1 px-4 py-2.5 text-xs border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:border-cyan-500"
+                          placeholder="e.g. JAMB 2026/2027 Registration Portal is officially open..."
+                        />
+                        <button
+                          onClick={handleAddTickerHeadline}
+                          className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shrink-0"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                        <Zap size={14} className="text-amber-400" /> Custom Emergency Headlines ({tickerHeadlines.length})
+                      </h4>
+                      {tickerHeadlines.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic py-4">No custom text headlines added yet.</p>
+                      ) : (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                          {tickerHeadlines.map((headline, index) => (
+                            <li
+                              key={index}
+                              className="flex justify-between items-center p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl text-xs text-gray-800 dark:text-gray-200 border border-gray-200/50 dark:border-gray-700/50 gap-2"
+                            >
+                              <span className="truncate">{headline}</span>
+                              <button
+                                onClick={() => handleRemoveTickerHeadline(index)}
+                                className="text-rose-500 hover:text-rose-400 font-bold shrink-0 text-xs px-2 py-0.5 rounded hover:bg-rose-500/10 cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+              {/* ── INFRASTRUCTURE TAB ── */}
+              {activeTab === 'infrastructure' && (
+                <div className="space-y-8 text-left">
+                  {/* System Feature Switches & Maintenance Control */}
+                  <div className="p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl space-y-6 text-white border border-indigo-500/30 shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-indigo-500/30 pb-4">
+                      <div>
+                        <h3 className="text-sm font-black uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+                          <Wrench size={18} className="text-amber-400 animate-spin" style={{ animationDuration: '8s' }} />
+                          System Feature Controls & Maintenance Modes
+                        </h3>
+                        <p className="text-[11px] text-indigo-200/80 mt-1">
+                          Toggle core platform modules on or off for instant maintenance control.
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-indigo-500/20 text-cyan-300 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-500/30">
+                        Live Controls
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* AI Chat Maintenance Mode Toggle */}
+                      <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
+                        isChatUnderMaintenance 
+                          ? 'bg-amber-950/40 border-amber-500/50 text-amber-100 shadow-lg shadow-amber-950/50' 
+                          : 'bg-slate-800/60 border-slate-700 text-slate-200'
+                      }`}>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                              <Brain size={16} className={isChatUnderMaintenance ? "text-amber-400 animate-pulse" : "text-blue-400"} />
+                              AI Chatbot Maintenance
+                            </span>
+                            <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                              isChatUnderMaintenance 
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            }`}>
+                              {isChatUnderMaintenance ? '🛠️ Under Maintenance' : '⚡ Active'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-300 leading-relaxed">
+                            {isChatUnderMaintenance 
+                              ? 'AI Chat is currently in Maintenance Mode. Users will see a maintenance upgrade screen in the chat drawer.' 
+                              : 'AI Chat is ONLINE and serving 2025/2026 admission queries.'}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={async () => {
+                            const nextState = !isChatUnderMaintenance;
+                            setIsChatUnderMaintenance(nextState);
+                            await saveGlobalConfig({ 
+                              geminiKey, geminiKey2, geminiKey3, newsKeyPref, calcKeyPref, developerPhoto, flutterwaveKey, featureKeys,
+                              isChatUnderMaintenance: nextState, showImportantBanner
+                            });
+                            localStorage.setItem('campusai_chat_maintenance', nextState ? 'true' : 'false');
+                            window.dispatchEvent(new Event('storage'));
+                            window.dispatchEvent(new Event('campusai_config_updated'));
+                          }}
+                          className={`w-full py-3 px-4 rounded-xl font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                            isChatUnderMaintenance 
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950' 
+                              : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-950'
+                          }`}
+                        >
+                          {isChatUnderMaintenance ? (
+                            <>
+                              <ToggleRight size={18} /> Turn ON AI Chat (End Maintenance)
+                            </>
+                          ) : (
+                            <>
+                              <ToggleLeft size={18} /> Put AI Chat Under Maintenance
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Important Update Banner Toggle */}
+                      <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
+                        showImportantBanner 
+                          ? 'bg-blue-950/40 border-blue-500/50 text-blue-100 shadow-lg shadow-blue-950/50' 
+                          : 'bg-slate-800/60 border-slate-700 text-slate-200'
+                      }`}>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                              <Megaphone size={16} className={showImportantBanner ? "text-cyan-400" : "text-gray-500"} />
+                              Top Important Update Banner
+                            </span>
+                            <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                              showImportantBanner 
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' 
+                                : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            }`}>
+                              {showImportantBanner ? '📌 Banner Visible' : '🚫 Banner Hidden'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-300 leading-relaxed">
+                            {showImportantBanner 
+                              ? 'Top banner is VISIBLE on all pages featuring pinned news updates.' 
+                              : 'Top banner is HIDDEN across the entire platform.'}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={async () => {
+                            const nextState = !showImportantBanner;
+                            setShowImportantBanner(nextState);
+                            await saveGlobalConfig({ 
+                              geminiKey, geminiKey2, geminiKey3, newsKeyPref, calcKeyPref, developerPhoto, flutterwaveKey, featureKeys,
+                              isChatUnderMaintenance, showImportantBanner: nextState
+                            });
+                            localStorage.setItem('campusai_show_important_banner', nextState ? 'true' : 'false');
+                            window.dispatchEvent(new Event('storage'));
+                            window.dispatchEvent(new Event('campusai_config_updated'));
+                          }}
+                          className={`w-full py-3 px-4 rounded-xl font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                            showImportantBanner 
+                              ? 'bg-rose-600 hover:bg-rose-500 text-white' 
+                              : 'bg-blue-600 hover:bg-blue-500 text-white'
+                          }`}
+                        >
+                          {showImportantBanner ? (
+                            <>
+                              <EyeOff size={18} /> Turn OFF / Hide Top Banner
+                            </>
+                          ) : (
+                            <>
+                              <Eye size={18} /> Enable / Show Top Banner
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Google Ads Simulation Toggle - Developer Mode */}
+                      <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
+                        localStorage.getItem('campusai_google_ads') === 'true'
+                          ? 'bg-amber-950/40 border-amber-500/50 text-amber-100 shadow-lg shadow-amber-950/50' 
+                          : 'bg-slate-800/60 border-slate-700 text-slate-200'
+                      }`}>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                              <Layout size={16} className={localStorage.getItem('campusai_google_ads') === 'true' ? "text-amber-400 animate-pulse" : "text-gray-500"} />
+                              Ad Placement Test
+                            </span>
+                            <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                              localStorage.getItem('campusai_google_ads') === 'true'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
+                                : 'bg-gray-500/20 text-gray-300 border-gray-500/40'
+                            }`}>
+                              {localStorage.getItem('campusai_google_ads') === 'true' ? '⚡ Active' : '🚫 Disabled'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-300 leading-relaxed">
+                            Preview Google Ad placements across the platform. This is for layout testing only.
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const current = localStorage.getItem('campusai_google_ads') === 'true';
+                            localStorage.setItem('campusai_google_ads', (!current).toString());
+                            window.location.reload();
+                          }}
+                          className={`w-full py-3 px-4 rounded-xl font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                            localStorage.getItem('campusai_google_ads') === 'true'
+                              ? 'bg-rose-600 hover:bg-rose-500 text-white' 
+                              : 'bg-amber-600 hover:bg-amber-500 text-white'
+                          }`}
+                        >
+                          {localStorage.getItem('campusai_google_ads') === 'true' ? (
+                            <>
+                              <EyeOff size={18} /> Disable Ad Simulation
+                            </>
+                          ) : (
+                            <>
+                              <Eye size={18} /> Enable Ad Simulation
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-6 border border-gray-100 dark:border-gray-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><Key size={14} /> API Core Nodes & Developer Identity</h3>
+                    <div className="p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-xs text-blue-800 dark:text-blue-300 flex items-start gap-3">
+                      <Info size={18} className="shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                      <div>
+                        <p className="font-bold">AI Model Precedence & Fallback Architecture</p>
+                        <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300/80 leading-relaxed">
+                          Primary AI inference uses Groq, OpenRouter, Nvidia, Mistral, and Cohere engines. Gemini API keys act strictly as secondary fallback options when primary providers are rate-limited or unconfigured.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {[
+                        { label: 'Gemini API Key 1 (Fallback Provider)', val: geminiKey,      set: setGeminiKey,      ph: 'Gemini Fallback Key 1...' },
+                        { label: 'Gemini API Key 2 (Fallback Provider)', val: geminiKey2,     set: setGeminiKey2,     ph: 'Gemini Fallback Key 2...' },
+                        { label: 'Gemini API Key 3 (Fallback Provider)', val: geminiKey3,     set: setGeminiKey3,     ph: 'Gemini Fallback Key 3...' },
+                        { label: 'Firecrawl API Key (Web Scraping & Agent)', val: firecrawlKey, set: setFirecrawlKey, ph: 'fc-...' },
+                        { label: 'Flutterwave Public Key',              val: flutterwaveKey, set: setFlutterwaveKey, ph: 'FLWPUBK-...' },
+                      ].map(({ label, val, set, ph }) => (
+                        <div key={label}>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-2">{label}</label>
+                          <input value={val} onChange={e => set(e.target.value)} placeholder={ph}
+                            className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl border-transparent focus:border-blue-500 outline-none dark:text-white font-mono mt-1 text-xs" />
+                        </div>
+                      ))}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-2">News Generation Key</label>
+                          <select value={newsKeyPref} onChange={e => setNewsKeyPref(e.target.value)} className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl border-transparent focus:border-blue-500 outline-none dark:text-white text-xs mt-1">
+                            <option value="auto">Auto Pool</option>
+                            <option value="primary">Primary Key</option>
+                            <option value="backup2">Backup Key 2</option>
+                            <option value="backup3">Backup Key 3</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-2">Calculation Key</label>
+                          <select value={calcKeyPref} onChange={e => setCalcKeyPref(e.target.value)} className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl border-transparent focus:border-blue-500 outline-none dark:text-white text-xs mt-1">
+                            <option value="auto">Auto Pool</option>
+                            <option value="primary">Primary Key</option>
+                            <option value="backup2">Backup Key 2</option>
+                            <option value="backup3">Backup Key 3</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="border border-dashed dark:border-gray-800 p-6 rounded-2xl flex flex-col items-center gap-4 bg-white dark:bg-gray-950">
+                        <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Meet Manny / About Section Profile Pic</span>
+                        {(developerPhoto && developerPhoto.trim()) ? (
+                          <div className="relative group">
+                            <img src={developerPhoto.trim()} className="w-24 h-24 rounded-full object-cover border dark:border-gray-800 shadow-md" alt="Manny" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[8px] font-black text-white uppercase">Active</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center text-gray-400"><User size={32} /></div>
+                        )}
+                        <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" id="admin-photo-picker-id" />
+                        <label htmlFor="admin-photo-picker-id" className="px-5 py-2.5 bg-gray-50 dark:bg-gray-900 border dark:border-gray-800 rounded-xl text-[9px] font-black uppercase tracking-widest cursor-pointer text-gray-700 dark:text-gray-300 hover:bg-gray-100 transition-colors">
+                          {developerPhoto ? 'Replace Image' : 'Upload Picture'}
+                        </label>
+                      </div>
+
+                      <button onClick={handleSaveConfig} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-700 transition-colors">
+                        Update Global Config
+                      </button>
+                    </div>
+                  </div>
+
+                  <SystemHealthStatus token={SECRET_TOKEN} />
+
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <Globe size={14} className="text-emerald-500 animate-pulse" /> Community & Social Links
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[
+                        ['X / Twitter', socialTwitter,   setSocialTwitter,   'https://x.com/campusai_ng'],
+                        ['Facebook',    socialFacebook,  setSocialFacebook,  'https://facebook.com/campusai.ng'],
+                        ['Instagram',   socialInstagram, setSocialInstagram, 'https://instagram.com/campusai.ng'],
+                        ['LinkedIn',    socialLinkedin,  setSocialLinkedin,  'https://linkedin.com/company/campusai_ng'],
+                        ['YouTube',     socialYoutube,   setSocialYoutube,   'https://youtube.com/@campusai_ng'],
+                        ['TikTok',      socialTiktok,    setSocialTiktok,    'https://tiktok.com/@campusai_ng'],
+                        ['Nairaland',   socialNairaland, setSocialNairaland, 'https://nairaland.com/...'],
+                        ['WhatsApp',    socialWhatsapp,  setSocialWhatsapp,  'https://chat.whatsapp.com/...'],
+                      ].map(([label, val, set, ph]) => (
+                        <div key={label as string}>
+                          <label className="text-[9px] font-black uppercase text-gray-500 ml-1">{label as string} Link</label>
+                          <input value={val as string} onChange={e => (set as any)(e.target.value)} placeholder={ph as string}
+                            className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl border-transparent focus:border-red-500 outline-none dark:text-white mt-1 text-xs" />
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={handleSaveConfig} className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all">
+                      Save Community Links
+                    </button>
+                  </div>
+
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <Mail size={14} className="text-purple-500 animate-pulse" /> Contact Channels
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[
+                        ['Email', contactEmail, setContactEmail, 'support@campusai.com.ng'],
+                        ['WhatsApp', contactWhatsApp, setContactWhatsApp, '+234...'],
+                        ['Address', contactAddress, setContactAddress, '...'],
+                        ['Support Hours', supportHours, setSupportHours, '...'],
+                      ].map(([label, val, set, ph]) => (
+                        <div key={label as string}>
+                          <label className="text-[9px] font-black uppercase text-gray-500 ml-1">{label as string}</label>
+                          <input value={val as string} onChange={e => (set as any)(e.target.value)} placeholder={ph as string}
+                            className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl border-transparent focus:border-purple-500 outline-none dark:text-white mt-1 text-xs" />
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={handleSaveConfig} className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all">
+                      Save Contact Channels
+                    </button>
+                  </div>
+
+
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><Database size={14} /> Institutional Scoring Sync</h3>
+                    <p className="text-xs text-gray-500">Populate cloud-cache with university cutoff formulas using AI.</p>
+                    {isSyncing && (
+                      <div className="bg-white dark:bg-gray-950 p-4 rounded-2xl border border-blue-500/20">
+                        <div className="flex justify-between text-[9px] font-black uppercase mb-2">
+                          <span className="text-blue-500">Syncing: {syncProgress.currentUni}</span>
+                          <span className="text-gray-400">{syncProgress.current} / {syncProgress.total}</span>
+                        </div>
+                        <div className="h-1 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500" style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }} />
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={handleSyncScoring} disabled={isSyncing} className="w-full py-4 bg-gray-900 dark:bg-gray-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2">
+                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Sync Scoring Matrix
+                    </button>
+                  </div>
+
+                  {/* IndexNow Instant Search Engine Indexing */}
+                  <div className="p-6 bg-gradient-to-br from-blue-900/10 to-teal-900/10 dark:from-blue-950/30 dark:to-teal-950/30 rounded-3xl space-y-4 border border-blue-500/20">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                        <Globe size={16} /> IndexNow Real-time Search Engine Indexer
+                      </h3>
+                      <span className="text-[9px] font-black uppercase bg-blue-500/10 text-blue-500 px-2.5 py-1 rounded-full border border-blue-500/20">
+                        Bing / Yandex / Naver
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      Submit updated pages directly to Microsoft Bing & partner search engines for immediate crawling. Key file hosted at <code className="bg-gray-200 dark:bg-gray-800 px-1.5 py-0.5 rounded text-[11px] font-mono">/14fbbbae19ab4b788d8153edd1d2550e.txt</code>.
+                    </p>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">URLs to submit (One per line)</label>
+                      <textarea
+                        rows={3}
+                        value={indexNowUrls}
+                        onChange={e => setIndexNowUrls(e.target.value)}
+                        placeholder="https://campusai.com.ng/..."
+                        className="w-full p-3 bg-white dark:bg-gray-950 rounded-xl font-mono text-xs dark:text-white border border-gray-200 dark:border-gray-800 outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    {indexNowResult && (
+                      <div className={`p-3 rounded-xl text-xs font-bold ${indexNowResult.success ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+                        {indexNowResult.success ? '✅ ' : '❌ '}{indexNowResult.message}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleIndexNowSubmit}
+                      disabled={isSubmittingIndexNow}
+                      className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-md"
+                    >
+                      {isSubmittingIndexNow ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} Submit URLs to IndexNow
+                    </button>
+                  </div>
+
+                  {/* Firecrawl Free Tier Scraper & Credit Optimizer */}
+                  <div className="p-6 bg-gradient-to-br from-orange-900/10 to-amber-900/10 dark:from-orange-950/30 dark:to-amber-950/30 rounded-3xl space-y-4 border border-orange-500/20">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                        <Globe size={16} /> Firecrawl Free Tier Scraper & Credit Optimizer
+                      </h3>
+                      <span className="text-[9px] font-black uppercase bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-full border border-orange-500/20">
+                        1,000+ Credits / Month (2 Concurrency)
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                      Your Firecrawl API key is successfully integrated (<code className="bg-gray-200 dark:bg-gray-800 px-1.5 py-0.5 rounded text-[11px] font-mono text-orange-600">fc-f760...1457</code>). To make the absolute best use of your 1,000+ free monthly credits (1 credit per page):
+                    </p>
+                    <ul className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1.5 list-disc pl-4 font-medium">
+                      <li><strong className="text-gray-900 dark:text-white">Targeted Portal Scraping:</strong> Scrape specific university admission & screening URLs directly instead of crawling entire domains.</li>
+                      <li><strong className="text-gray-900 dark:text-white">LLM-Ready Markdown:</strong> Firecrawl automatically strips ads and boilerplate, delivering pristine markdown for instant AI analysis.</li>
+                      <li><strong className="text-gray-900 dark:text-white">Concurrency Management:</strong> Respects the 2 concurrent request limit to prevent rate limits during university update syncs.</li>
+                    </ul>
+
+                    <div className="pt-2 space-y-2">
+                      <label className="text-[10px] font-black uppercase text-gray-400 block">Test Live University Portal Scrape</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={firecrawlTestUrl}
+                          onChange={e => setFirecrawlTestUrl(e.target.value)}
+                          placeholder="https://www.futa.edu.ng/admission"
+                          className="flex-1 p-3 bg-white dark:bg-gray-950 rounded-xl font-mono text-xs dark:text-white border border-gray-200 dark:border-gray-800 outline-none focus:border-orange-500"
+                        />
+                        <button
+                          onClick={handleTestFirecrawlScrape}
+                          disabled={isFirecrawlTesting || !firecrawlTestUrl.trim()}
+                          className="px-6 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-sm transition-all"
+                        >
+                          {isFirecrawlTesting ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Test Scrape
+                        </button>
+                      </div>
+                    </div>
+
+                    {firecrawlTestResult && (
+                      <div className="mt-4 p-4 bg-white dark:bg-gray-950 rounded-2xl border border-orange-500/20 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className={`font-black uppercase text-[10px] ${firecrawlTestResult.success ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {firecrawlTestResult.success ? '✅ Scrape Successful (1 Credit Consumed)' : '❌ Scrape Failed'}
+                          </span>
+                          <span className="text-[9px] text-gray-400 font-mono">Firecrawl v1 API</span>
+                        </div>
+                        {firecrawlTestResult.success ? (
+                          <div className="space-y-3">
+                            <div className="max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-3 rounded-xl font-mono text-[10px] text-gray-700 dark:text-gray-300 whitespace-pre-wrap select-all">
+                              {firecrawlTestResult.data?.markdown || JSON.stringify(firecrawlTestResult.data, null, 2)}
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                              <span className="text-[10px] text-gray-500 italic">Ready for AI Knowledge Base & News publication</span>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handlePublishAsArticle}
+                                  disabled={isPublishingNews || publishNewsSuccess}
+                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-sm transition-all"
+                                >
+                                  {isPublishingNews ? <Loader2 size={12} className="animate-spin" /> : publishNewsSuccess ? <Check size={12} /> : <FileText size={12} />}
+                                  {publishNewsSuccess ? 'Published to News Hub!' : 'Publish as News Article'}
+                                </button>
+                                <button
+                                  onClick={handleSyncToKnowledge}
+                                  disabled={isSyncingKnowledge || syncKnowledgeSuccess}
+                                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-sm transition-all"
+                                >
+                                  {isSyncingKnowledge ? <Loader2 size={12} className="animate-spin" /> : syncKnowledgeSuccess ? <Check size={12} /> : <Brain size={12} />}
+                                  {syncKnowledgeSuccess ? 'Synced to Knowledge Base!' : 'Sync to AI Knowledge Base'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-red-500 text-[11px]">{firecrawlTestResult.error}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── DEPARTMENTAL CUTOFFS TAB ── */}
+              {activeTab === 'cutoffs' && (
+                <div className="space-y-8 text-left">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-900 pb-4">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                        <Sliders size={14} /> Departmental Cutoff Overrides (Research Grounding)
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Manage official researched departmental guidelines. Restricts the AI to evaluate candidates strictly against these values.
+                      </p>
+                    </div>
+                    <button
+                      onClick={loadCutoffOverrides}
+                      disabled={isOverridesLoading}
+                      className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 self-start active:scale-95 transition-all"
+                    >
+                      <RefreshCw size={12} className={isOverridesLoading ? "animate-spin" : ""} /> Refresh List
+                    </button>
+                  </div>
+
+                  {overridesError && (
+                    <div className="p-4 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-2xl text-xs font-medium border border-red-500/10 flex items-center gap-2">
+                      <ShieldAlert size={14} /><span>{overridesError}</span>
+                    </div>
+                  )}
+                  {overridesSuccess && (
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-medium border border-emerald-500/10 flex items-center gap-2">
+                      <ShieldCheck size={14} /><span>{overridesSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <form onSubmit={handleSaveNewOverride} className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                        <Plus size={12} /> Add Custom Cutoff Override
+                      </h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Institution Name</label>
+                          <input type="text" required placeholder="e.g. Federal University of Technology, Akure"
+                            value={newUniName} onChange={e => setNewUniName(e.target.value)}
+                            className="w-full mt-1 bg-white dark:bg-gray-950 text-xs p-3 rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-800 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Course / Department</label>
+                          <input type="text" required placeholder="e.g. Mechanical Engineering"
+                            value={newCourseName} onChange={e => setNewCourseName(e.target.value)}
+                            className="w-full mt-1 bg-white dark:bg-gray-950 text-xs p-3 rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-800 dark:text-white" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Dept Cutoff (Percentage or raw)</label>
+                            <input type="text" required placeholder="e.g. 68.25% or 250"
+                              value={newDeptCutoff} onChange={e => setNewDeptCutoff(e.target.value)}
+                              className="w-full mt-1 bg-white dark:bg-gray-950 text-xs p-3 rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-800 dark:text-white" />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Uni Floor Cutoff (JAMB raw)</label>
+                            <input type="text" placeholder="e.g. 180 (Optional)"
+                              value={newInstCutoff} onChange={e => setNewInstCutoff(e.target.value)}
+                              className="w-full mt-1 bg-white dark:bg-gray-950 text-xs p-3 rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-800 dark:text-white" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Explanation / Source</label>
+                          <textarea rows={2} placeholder="e.g. Official merit department cutoff released by admissions senate."
+                            value={newOverrideExplanation} onChange={e => setNewOverrideExplanation(e.target.value)}
+                            className="w-full mt-1 bg-white dark:bg-gray-950 text-xs p-3 rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-800 dark:text-white resize-none" />
+                        </div>
+                      </div>
+                      <button type="submit" disabled={isSavingOverride}
+                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+                        {isSavingOverride ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save Rule
+                      </button>
+                    </form>
+
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl flex flex-col justify-between space-y-4">
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-gray-400 flex items-center gap-2 mb-2">
+                          <FileJson size={12} /> Bulk JSON Importer (For Manus / Researchers)
+                        </h4>
+                        <p className="text-[10px] text-gray-500 leading-relaxed mb-3">
+                          Have multiple course guidelines? Paste a JSON list of objects here to save them simultaneously. Missing/incomplete records skip safely.
+                        </p>
+                        <div className="bg-gray-100 dark:bg-gray-950 p-3 rounded-xl border border-gray-200 dark:border-gray-800 text-[10px] font-mono text-gray-500 mb-3 select-all">
+                          <span className="text-blue-500">Format Guide:</span>
+                          <pre className="mt-1 overflow-x-auto text-[9px]">
+{`[
+  {
+    "institution": "University of Lagos",
+    "course": "Computer Engineering",
+    "departmentalCutoff": "72.5%",
+    "institutionalCutoff": "200",
+    "explanation": "Official merit 2026 cutoff guidelines."
+  }
+]`}
+                          </pre>
+                        </div>
+                        <textarea rows={6} placeholder='Paste JSON data here (Array of Cutoff objects)...'
+                          value={bulkJSONText} onChange={e => setBulkJSONText(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-950 text-[10px] font-mono p-3 rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-800 dark:text-white resize-none" />
+                      </div>
+                      <button onClick={handleBulkJSONImport} disabled={isSavingOverride}
+                        className="w-full py-3 bg-gray-900 dark:bg-gray-800 hover:bg-gray-950 text-white rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+                        {isSavingOverride ? <Loader2 size={12} className="animate-spin" /> : <FileJson size={12} />} Ingest Bulk Guidelines
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-900">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                        Active Cutoff Database Cache ({overrides.length})
+                      </h4>
+                      <div className="relative max-w-xs w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input type="text" placeholder="Search overrides list..."
+                          value={overridesSearch} onChange={e => setOverridesSearch(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-950 text-xs rounded-xl border border-gray-200 dark:border-gray-800 focus:border-red-500 outline-none text-gray-700 dark:text-white" />
+                      </div>
+                    </div>
+
+                    {isOverridesLoading ? (
+                      <div className="py-12 flex justify-center text-center text-gray-400 text-xs gap-2">
+                        <Loader2 className="animate-spin" size={16} /> Loading custom database overrides...
+                      </div>
+                    ) : (
+                      (() => {
+                        const filtered = overrides.filter(o =>
+                          (o.institution || '').toLowerCase().includes(overridesSearch.toLowerCase()) ||
+                          (o.course || '').toLowerCase().includes(overridesSearch.toLowerCase())
+                        );
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="p-12 text-center rounded-3xl border-2 border-dashed border-gray-100 dark:border-gray-900 text-gray-400 text-xs">
+                              {overridesSearch ? "No overrides match your search query." : "No cutoff overrides calibrated in the database yet. Add rules above to start calibration."}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto pr-2 no-scrollbar">
+                            {filtered.map((override, idx) => (
+                              <div key={idx} className="p-4 bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-900 rounded-2xl flex justify-between items-start gap-3 shadow-sm hover:shadow transition-all group">
+                                <div className="space-y-1 text-xs">
+                                  <div className="font-semibold text-gray-800 dark:text-gray-100">{override.course}</div>
+                                  <div className="text-[10px] text-gray-500">{override.institution}</div>
+                                  {override.explanation && (
+                                    <div className="text-[10px] text-gray-400 italic mt-1 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
+                                      "{override.explanation}"
+                                    </div>
+                                  )}
+                                  {override.institutionalCutoff && (
+                                    <div className="text-[9px] text-blue-500 font-semibold uppercase mt-1">
+                                      Uni Floor Limit: {override.institutionalCutoff}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <div className="px-2.5 py-1 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 text-[10px] font-extrabold rounded-lg tracking-wider">
+                                    {override.departmentalCutoff}
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteOverride(override.institution, override.course)}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg active:scale-90 transition-all"
+                                    aria-label="Delete override rule"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── CONTENT TAB ── */}
+              {activeTab === 'content' && (
+                <div className="space-y-8">
+                  {/* ⚡ News Ticker Scrolling Speed Controller */}
+                  <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-black text-cyan-400 flex items-center gap-2">
+                          <Sparkles size={16} className="text-cyan-400" /> Breaking News Ticker Scrolling Speed
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Adjust the horizontal scrolling speed of the top Breaking News ticker bar.
+                        </p>
+                      </div>
+
+                      <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-xl border border-cyan-500/20 shrink-0">
+                        {(() => {
+                          const saved = typeof window !== 'undefined' ? localStorage.getItem('campusai_news_ticker_speed') : null;
+                          const speed = saved ? parseInt(saved, 10) : 80;
+                          return `${speed} Seconds Loop ${speed >= 120 ? '(Calm)' : speed <= 45 ? '(Fast)' : '(Standard)'}`;
+                        })()}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <input
+                        type="range"
+                        min="20"
+                        max="240"
+                        step="5"
+                        defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('campusai_news_ticker_speed') || '80') : '80'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          localStorage.setItem('campusai_news_ticker_speed', val);
+                          window.dispatchEvent(new Event('campusai_news_speed_updated'));
+                        }}
+                        className="w-full accent-cyan-500 bg-slate-800 rounded-lg cursor-pointer h-2"
+                      />
+
+                      {/* Speed Preset Buttons */}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {[
+                          { label: 'Fast (40s)', val: 40 },
+                          { label: 'Standard (60s)', val: 60 },
+                          { label: 'Calm (80s)', val: 80 },
+                          { label: 'Ultra Slow (120s)', val: 120 },
+                          { label: 'Crawling (180s)', val: 180 },
+                        ].map((p) => (
+                          <button
+                            key={p.val}
+                            type="button"
+                            onClick={() => {
+                              localStorage.setItem('campusai_news_ticker_speed', p.val.toString());
+                              window.dispatchEvent(new Event('campusai_news_speed_updated'));
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition-all cursor-pointer active:scale-95"
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><Newspaper size={14} /> Feed Manager</h3>
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center items-start">
+                      <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl shrink-0">
+                        <button 
+                          onClick={() => setNewsFilter('live')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${newsFilter === 'live' ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm' : 'text-gray-400'}`}
+                        >
+                          Live
+                        </button>
+                        <button 
+                          onClick={() => setNewsFilter('pending')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1 ${newsFilter === 'pending' ? 'bg-white dark:bg-gray-700 text-amber-600 shadow-sm' : 'text-gray-400'}`}
+                        >
+                          Pending
+                          {publishedNews.filter(n => !n.isLive).length > 0 && (
+                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2 flex-wrap sm:border-l sm:border-gray-200 dark:sm:border-gray-800 sm:pl-4">
+                        <button onClick={handlePurgeAllNews} disabled={isContentLoading} className="px-3 py-2 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 active:scale-95"><Trash2 size={12} /> Purge</button>
+                        <button onClick={handleFixFutureDates} disabled={isContentLoading} className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 active:scale-95"><Clock size={12} /> Fix Future</button>
+                        <button onClick={handleSyncLiveNews} disabled={isContentLoading} className="px-3 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1">
+                          {isContentLoading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />} AI Sync
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowAIBlogForm(!showAIBlogForm);
+                            setShowPostForm(false);
+                            setShowFirecrawlAgentModal(false);
+                            setAiGeneratedPost(null);
+                          }}
+                          className="px-3 py-2 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1"
+                        >
+                          <Sparkles size={12} /> AI Blog
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowFirecrawlAgentModal(!showFirecrawlAgentModal);
+                            setShowPostForm(false);
+                            setShowAIBlogForm(false);
+                          }}
+                          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 shadow-sm"
+                          title="Execute official university web research using Firecrawl AI Agent"
+                        >
+                          <Globe size={12} /> Firecrawl Agent
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!showPostForm) {
+                              setNewPost({ category: 'National' });
+                            }
+                            setShowPostForm(!showPostForm);
+                            setShowAIBlogForm(false);
+                            setShowFirecrawlAgentModal(false);
+                          }}
+                          className="px-3 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase"
+                        >
+                          {showPostForm ? 'Cancel' : 'Manual'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {showPostForm && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-4 border border-blue-500/20">
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Headline</label>
+                          <input placeholder="Headline" className="w-full p-4 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none text-sm border border-gray-100 dark:border-gray-800 focus:border-blue-500"
+                            value={newPost.title || ''} onChange={e => setNewPost({ ...newPost, title: e.target.value })} />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Category</label>
+                            <select 
+                              className="w-full p-4 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none text-sm border border-gray-100 dark:border-gray-800 focus:border-blue-500"
+                              value={newPost.category || 'National'} 
+                              onChange={e => setNewPost({ ...newPost, category: e.target.value as any })}
+                            >
+                              <option value="JAMB">JAMB</option>
+                              <option value="National">National</option>
+                              <option value="Scholarships">Scholarships</option>
+                              <option value="Jobs">Jobs</option>
+                              <option value="NYSC">NYSC</option>
+                              <option value="Polytechnic">Polytechnic</option>
+                              <option value="COE">COE</option>
+                              <option value="State">State</option>
+                              <option value="Private">Private</option>
+                              <option value="Federal">Federal</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Short Excerpt</label>
+                            <input placeholder="A brief summary of the article..." className="w-full p-4 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none text-sm border border-gray-100 dark:border-gray-800 focus:border-blue-500"
+                              value={newPost.excerpt || ''} onChange={e => setNewPost({ ...newPost, excerpt: e.target.value })} />
+                          </div>
+                        </div>
+                        <ArticleImagesUploader
+                          images={newPost.images || []}
+                          featuredImage={newPost.image || ''}
+                          onChangeImages={(imgs, feat) => setNewPost({ ...newPost, images: imgs, image: feat })}
+                          onInsertMarkdown={(imgUrl) => {
+                            setNewPost({
+                              ...newPost,
+                              fullContent: (newPost.fullContent || '') + `\n\n![Image](${imgUrl})\n\n`
+                            });
+                          }}
+                        />
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-4">
+                              <label className="text-[10px] font-black uppercase text-gray-400 block">Article Content</label>
+                              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                                <Youtube size={10} className="text-red-500" /> Auto-embeds Youtube Links
+                              </label>
+                            </div>
+                            <label className="cursor-pointer text-[10px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1">
+                              <ImageIcon size={12} /> Insert Inline Image
+                              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const base64 = await compressImage(file, 800);
+                                  setNewPost({ ...newPost, fullContent: (newPost.fullContent || '') + `\n\n![Image](${base64})\n\n` });
+                                }
+                              }} />
+                            </label>
+                          </div>
+                          <textarea placeholder="Article content..." className="w-full p-4 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none h-40 text-sm border border-gray-100 dark:border-gray-800 focus:border-blue-500"
+                            value={newPost.fullContent || ''} onChange={e => setNewPost({ ...newPost, fullContent: e.target.value })} />
+                        </div>
+                        <button onClick={handlePublishPost} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase text-xs tracking-wider transition-colors">Publish to Cloud</button>
+                      </motion.div>
+                    )}
+
+                    {showAIBlogForm && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }} 
+                        animate={{ height: 'auto', opacity: 1 }} 
+                        exit={{ height: 0, opacity: 0 }}
+                        className="p-6 bg-purple-50/50 dark:bg-purple-950/10 rounded-3xl space-y-4 border border-purple-500/20"
+                      >
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                            <Sparkles size={14} /> AI News Researcher & Generator
+                          </h4>
+                          <p className="text-[10px] text-gray-500 dark:text-slate-300">
+                            Enter any news story, topic, or keyword you saw. The AI will search the web for recent articles, compile facts, and generate a structured, ready-to-publish blog post.
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <input 
+                            placeholder="e.g. FUTA physical clearance starting date or ASUU strike update..." 
+                            className="flex-1 p-4 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none border border-gray-200 dark:border-gray-800 focus:border-purple-500 text-xs"
+                            value={aiBlogQuery} 
+                            onChange={e => setAiBlogQuery(e.target.value)} 
+                            disabled={isAIGenerating}
+                            onKeyDown={e => { if (e.key === 'Enter') handleGenerateAIBlog(); }}
+                          />
+                          {/* <button 
+                            onClick={handleGenerateAIBlog} 
+                            disabled={isAIGenerating || !aiBlogQuery.trim()}
+                            className="px-6 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2"
+                          >
+                            {isAIGenerating ? (
+                              <>
+                                <Loader2 size={12} className="animate-spin" />
+                                Searching & Writing...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles size={12} />
+                                Generate
+                              </>
+                            )}
+                          </button> */}
+                        </div>
+
+                        {aiGeneratedPost && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-6 p-5 bg-white dark:bg-gray-950 rounded-2xl border border-purple-500/30 space-y-4 shadow-sm"
+                          >
+                            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-900 pb-3">
+                              <h5 className="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">
+                                Generated Draft Preview & Review
+                              </h5>
+                              <span className="text-[9px] bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full font-bold">
+                                Category: {aiGeneratedPost.category}
+                              </span>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Headline</label>
+                                <input 
+                                  className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl dark:text-white outline-none font-bold text-xs border border-transparent focus:border-purple-500"
+                                  value={aiGeneratedPost.title || ''} 
+                                  onChange={e => setAiGeneratedPost({ ...aiGeneratedPost, title: e.target.value })} 
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-gray-400">Category Override</label>
+                                  <select 
+                                    className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl dark:text-white outline-none text-xs border border-transparent focus:border-purple-500"
+                                    value={aiGeneratedPost.category || 'National'}
+                                    onChange={e => setAiGeneratedPost({ ...aiGeneratedPost, category: e.target.value })}
+                                  >
+                                    <option value="National">National</option>
+                                    <option value="Institution">Institution</option>
+                                    <option value="ASUU">ASUU</option>
+                                    <option value="Scholarship">Scholarship</option>
+                                    <option value="Admission">Admission</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-gray-400">Excerpt / Summary</label>
+                                  <input 
+                                    className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl dark:text-white outline-none text-xs border border-transparent focus:border-purple-500"
+                                    value={aiGeneratedPost.excerpt || ''} 
+                                    onChange={e => setAiGeneratedPost({ ...aiGeneratedPost, excerpt: e.target.value })} 
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Article Content (Markdown Support)</label>
+                                <textarea 
+                                  className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl dark:text-white outline-none text-xs h-60 border border-transparent focus:border-purple-500 font-mono leading-relaxed"
+                                  value={aiGeneratedPost.fullContent || ''} 
+                                  onChange={e => setAiGeneratedPost({ ...aiGeneratedPost, fullContent: e.target.value })} 
+                                />
+                              </div>
+
+                              {aiSources.length > 0 && (
+                                <div className="pt-2">
+                                  <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Sources Researched</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {aiSources.map((src, sIdx) => (
+                                      <a 
+                                        key={src} 
+                                        href={src} 
+                                        target="_blank" 
+                                        referrerPolicy="no-referrer" 
+                                        rel="noopener noreferrer"
+                                        className="text-[8px] bg-gray-100 dark:bg-gray-1000 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 p-1 px-2 rounded-lg truncate max-w-xs transition-colors"
+                                      >
+                                        {src}
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <button 
+                              onClick={handlePublishAIPost} 
+                              disabled={isContentLoading}
+                              className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black uppercase text-xs shadow-md transition-all active:scale-[0.98] mt-4 flex items-center justify-center gap-2"
+                            >
+                              {isContentLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                              Publish AI Generated Post to Cloud
+                            </button>
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {showFirecrawlAgentModal && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }} 
+                        animate={{ height: 'auto', opacity: 1 }} 
+                        exit={{ height: 0, opacity: 0 }}
+                        className="p-6 bg-amber-50/50 dark:bg-amber-950/15 rounded-3xl space-y-4 border border-amber-500/30"
+                      >
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                            <Globe size={14} /> Firecrawl Official AI Research Agent
+                          </h4>
+                          <p className="text-[10px] text-gray-500 dark:text-slate-300">
+                            Executes a programmatic Firecrawl Agent run against official Nigerian university admission portals and JAMB databases to extract verified minimum cut-offs, departmental thresholds, and aggregate formulas.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase text-gray-400">Target University</label>
+                            <input 
+                              placeholder="e.g. Obafemi Awolowo University (OAU), UNILAG, or FUTA" 
+                              className="w-full p-3.5 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none border border-gray-200 dark:border-gray-800 focus:border-amber-500 text-xs"
+                              value={firecrawlTargetUni} 
+                              onChange={e => setFirecrawlTargetUni(e.target.value)} 
+                              disabled={isFirecrawlRunning}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase text-gray-400">Execution Options</label>
+                            <div className="h-[46px] flex items-center px-4 bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800">
+                              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 dark:text-gray-300">
+                                <input 
+                                  type="checkbox" 
+                                  checked={firecrawlAutoPublish} 
+                                  onChange={e => setFirecrawlAutoPublish(e.target.checked)}
+                                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-gray-300"
+                                />
+                                <span>Auto-publish verified report directly to News</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black uppercase text-gray-400">Custom Research Prompt (Optional)</label>
+                          <textarea 
+                            rows={3}
+                            placeholder="Leave blank to use official 2026/2027 schema for minimum cut-off, post-UTME eligibility, departmental cutoffs, and aggregate formulas..."
+                            className="w-full p-3 bg-white dark:bg-gray-950 rounded-xl dark:text-white outline-none border border-gray-200 dark:border-gray-800 focus:border-amber-500 text-xs font-mono"
+                            value={firecrawlCustomPrompt}
+                            onChange={e => setFirecrawlCustomPrompt(e.target.value)}
+                            disabled={isFirecrawlRunning}
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={handleRunFirecrawlAgent} 
+                            disabled={isFirecrawlRunning || !firecrawlTargetUni.trim()}
+                            className="px-6 py-3 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-md transition-all active:scale-95"
+                          >
+                            {isFirecrawlRunning ? (
+                              <>
+                                <Loader2 size={13} className="animate-spin" />
+                                Agent Running Multi-page Scrapes...
+                              </>
+                            ) : (
+                              <>
+                                <Globe size={13} />
+                                Start Official Web Agent Run
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {firecrawlResult && (
+                          <div className="mt-4 p-4 bg-white dark:bg-gray-950 rounded-2xl border border-amber-500/30 space-y-3">
+                            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-900 pb-2">
+                              <h5 className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                Official Agent Research Result
+                              </h5>
+                              {firecrawlResult.official_source_url && (
+                                <a 
+                                  href={firecrawlResult.official_source_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-[9px] text-blue-500 hover:underline flex items-center gap-1"
+                                >
+                                  Verified Source <ExternalLink size={10} />
+                                </a>
+                              )}
+                            </div>
+                            <div className="max-h-80 overflow-y-auto font-mono text-xs whitespace-pre-wrap p-3 bg-gray-50 dark:bg-gray-900 rounded-xl text-gray-800 dark:text-gray-200">
+                              {firecrawlResult.markdown || JSON.stringify(firecrawlResult, null, 2)}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Search Bar for Articles */}
+                  <div className="relative mb-4">
+                    <input
+                      type="text"
+                      placeholder="Search articles by headline, institution (e.g. EBSU), category, or slug..."
+                      value={newsSearchTerm}
+                      onChange={e => setNewsSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 text-gray-900 dark:text-white transition-all shadow-sm"
+                    />
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+                      <Search size={15} />
+                    </div>
+                    {newsSearchTerm && (
+                      <button
+                        onClick={() => setNewsSearchTerm('')}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {publishedNews
+                      .filter(item => newsFilter === 'live' ? item.isLive : !item.isLive)
+                      .filter(item => {
+                        if (!newsSearchTerm.trim()) return true;
+                        const term = newsSearchTerm.toLowerCase();
+                        return (
+                          (item.title || '').toLowerCase().includes(term) ||
+                          (item.slug || '').toLowerCase().includes(term) ||
+                          (item.category || '').toLowerCase().includes(term) ||
+                          (item.excerpt || '').toLowerCase().includes(term) ||
+                          (item.id || '').toLowerCase().includes(term)
+                        );
+                      })
+                      .slice(0, 1000).map(item => {
+                      const itemTime = new Date(item.date).getTime();
+                      const isFuture = !isNaN(itemTime) && itemTime > todayLagosMidnight;
+                      return (
+                        <div key={item.id} className={`p-4 bg-white dark:bg-gray-900 border rounded-[24px] flex items-center justify-between group transition-all shadow-sm hover:shadow-md ${isFuture ? 'border-orange-500/30' : 'border-gray-100 dark:border-gray-800'}`}>
+                          <div className="flex items-center gap-4 overflow-hidden flex-1">
+                            <div className={`p-2 rounded-xl ${isFuture ? 'bg-orange-500/10 text-orange-500' : 'bg-gray-50 dark:bg-gray-800 text-gray-500'}`}>
+                              <Newspaper size={18} />
+                            </div>
+                            <div className="overflow-hidden flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="font-bold text-sm text-gray-900 dark:text-gray-50 truncate">{item.title}</p>
+                                {isFuture && <span className="px-2 py-0.5 bg-orange-500 text-white text-[8px] font-black uppercase rounded-full animate-pulse">Future</span>}
+                                {!item.isLive && <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black uppercase rounded-full">Review Required</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] text-gray-600 dark:text-slate-300 font-bold uppercase tracking-widest">{item.category} • {formatNewsPostTime(item).combinedCard}</p>
+                                <button onClick={() => { setEditingDateId(item.id); setEditedDateValue(item.date); }} className="p-1 opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition-all"><Edit size={10} /></button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!item.isLive && (
+                              <button
+                                onClick={() => setPreviewNews(item)}
+                                className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all"
+                              >
+                                <Eye size={12} /> Review
+                              </button>
+                            )}
+                            {!item.isLive && (
+                              <button
+                                onClick={() => handleApproveNews(item.id)}
+                                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+                              >
+                                <Check size={12} /> Publish
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setEditingNews(item)}
+                              className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                              title="Edit Full Content"
+                            >
+                              <Zap size={16} />
+                            </button>
+                            <button onClick={() => handleDeletePost(item.id)} aria-label="Delete post" className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {hasMoreAdminNews && publishedNews.filter(item => newsFilter === 'live' ? item.isLive : !item.isLive).length > 0 && (
+                      <div className="flex justify-center pt-4">
+                        <button
+                          onClick={handleLoadMoreNews}
+                          disabled={isAdminNewsLoading}
+                          className="px-6 py-2.5 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all active:scale-[0.98] border border-gray-100 dark:border-gray-800 shadow-sm"
+                        >
+                          {isAdminNewsLoading ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <ChevronDown size={12} />
+                          )}
+                          Load More Articles
+                        </button>
+                      </div>
+                    )}
+                    {publishedNews.filter(item => newsFilter === 'live' ? item.isLive : !item.isLive).length === 0 && (
+                      <div className="py-20 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-[32px]">
+                        <Newspaper size={32} className="mx-auto text-gray-200 mb-3" />
+                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">No {newsFilter} articles found</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── EMAILS / CAMPAIGNS TAB ── */}
+              {activeTab === 'emails' && (
+                <div className="space-y-8 text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                        <FileText size={14} className="text-blue-500" /> HTML Email Campaigner & Newsletter
+                      </h3>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
+                        Dispatched securely via Resend API from your verified domain
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEmailPreviewMode(!emailPreviewMode)}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${emailPreviewMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-slate-300'}`}
+                      >
+                        <Eye size={14} /> {emailPreviewMode ? 'Editor Mode' : 'Live HTML Preview'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Settings & Templates */}
+                    <div className="space-y-6 lg:col-span-1 bg-gray-50 dark:bg-gray-900/50 p-6 rounded-[32px] border border-gray-100 dark:border-gray-800">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Recipient Audience</label>
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setEmailRecipientGroup('users')}
+                            className={`w-full p-3 rounded-2xl text-left text-xs font-bold transition-all flex items-center justify-between ${emailRecipientGroup === 'users' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+                          >
+                            <span>All Registered Users ({recentUsers.length})</span>
+                            <Users size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailRecipientGroup('subscribers')}
+                            className={`w-full p-3 rounded-2xl text-left text-xs font-bold transition-all flex items-center justify-between ${emailRecipientGroup === 'subscribers' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+                          >
+                            <span>Subscribed Alert List</span>
+                            <CheckCircle2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailRecipientGroup('custom')}
+                            className={`w-full p-3 rounded-2xl text-left text-xs font-bold transition-all flex items-center justify-between ${emailRecipientGroup === 'custom' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+                          >
+                            <span>Custom Email Addresses</span>
+                            <FileText size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {emailRecipientGroup === 'custom' && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Enter Emails (comma or newline separated)</label>
+                          <textarea
+                            value={customEmailsText}
+                            onChange={e => setCustomEmailsText(e.target.value)}
+                            rows={4}
+                            placeholder="student1@gmail.com, student2@futa.edu.ng"
+                            className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 text-gray-900 dark:text-white"
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-800">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
+                            <span>Resend API Key</span>
+                            <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline lowercase font-medium">Get key</a>
+                          </label>
+                          <input
+                            type="password"
+                            value={resendApiKey}
+                            onChange={e => setResendApiKey(e.target.value)}
+                            placeholder="re_..."
+                            className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-mono text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sender Email (From)</label>
+                          <input
+                            type="text"
+                            value={resendFromEmail}
+                            onChange={e => setResendFromEmail(e.target.value)}
+                            placeholder="CampusAI Admissions <noreply@campusai.com.ng>"
+                            className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                          />
+                          <p className="text-[10px] text-gray-500 italic">Example: CampusAI Admissions &lt;noreply@campusai.com.ng&gt;</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Templates</label>
+                          <button
+                            onClick={handleSaveCurrentTemplate}
+                            className="text-[10px] font-extrabold text-blue-600 hover:text-blue-700 uppercase tracking-wider flex items-center gap-1"
+                          >
+                            + Save Current
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 max-h-[220px] overflow-y-auto pr-1">
+                          {savedTemplates.map(t => (
+                            <div
+                              key={t.id}
+                              onClick={() => {
+                                setEmailSubject(t.subject);
+                                setEmailHtmlContent(t.htmlContent);
+                              }}
+                              className="p-2.5 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700/80 rounded-xl text-xs font-bold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 transition-all flex items-center justify-between group cursor-pointer"
+                            >
+                              <span className="truncate flex-1">📄 {t.name}</span>
+                              <button
+                                onClick={(e) => handleDeleteTemplate(t.id, e)}
+                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                title="Delete Template"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl space-y-2">
+                        <p className="text-[11px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-wider">💡 RESEND CONFIG TIP</p>
+                        <p className="text-[11px] text-gray-600 dark:text-slate-300 leading-relaxed">
+                          For testing, use <code className="bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono text-blue-600">onboarding@resend.dev</code> as your sender. To use your custom domain, verify it at <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline text-blue-600 font-bold">resend.com/domains</a>.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right Editor & Preview */}
+                    <div className="space-y-6 lg:col-span-2 bg-gray-50 dark:bg-gray-900/50 p-6 rounded-[32px] border border-gray-100 dark:border-gray-800">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Subject Line</label>
+                        <input
+                          type="text"
+                          value={emailSubject}
+                          onChange={e => setEmailSubject(e.target.value)}
+                          className="w-full px-5 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                        />
+                      </div>
+
+                      {!emailPreviewMode ? (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
+                            <span>HTML Template Content</span>
+                            <span className="text-blue-500 lowercase font-bold tracking-normal italic">Full HTML & CSS supported</span>
+                          </label>
+                          <textarea
+                            value={emailHtmlContent}
+                            onChange={e => setEmailHtmlContent(e.target.value)}
+                            rows={16}
+                            className="w-full px-5 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-mono text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all leading-relaxed"
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Live HTML Render Preview</label>
+                          <div className="w-full h-[420px] bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-inner">
+                            <iframe
+                              srcDoc={emailHtmlContent}
+                              title="Email Preview"
+                              className="w-full h-full border-0"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800">
+                        <div>
+                          {emailSendResult && (
+                            <p className={`text-xs font-bold ${emailSendResult.success ? 'text-emerald-500' : 'text-red-500'}`}>
+                              {emailSendResult.success ? `Successfully sent to ${emailSendResult.sentCount}/${emailSendResult.total} recipients.` : `Error: ${emailSendResult.error}`}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={handleSendTestEmail}
+                            disabled={isSendingEmails}
+                            className="px-6 py-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-2xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-50"
+                          >
+                            Send Test Email
+                          </button>
+                          <button
+                            onClick={handleSendEmailCampaign}
+                            disabled={isSendingEmails}
+                            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {isSendingEmails ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                            Dispatch Email Campaign Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── USERS TAB ── */}
+              {activeTab === 'users' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><Users size={14} /> Scholar Directory</h3>
+                      <p className="text-[10px] text-gray-500 dark:text-slate-300 mt-0.5">Inspect individual candidate audits, guest runs, and allocate scholar credits</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => setSelectedUserForPredictions({
+                          uid: 'all',
+                          email: 'all@campusai.com.ng',
+                          displayName: 'All Platform Calculations'
+                        })}
+                        className="px-3.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                      >
+                        <Zap size={12} /> Master Calculation Feed
+                      </button>
+                      <div className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-sm">{totalUserCount} Souls</div>
+                    </div>
+                  </div>
+
+                  {/* Dedicated Anonymous Guest Calculations Card */}
+                  <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0">
+                        <Zap size={20} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">Anonymous Guest Scholars</p>
+                          <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black uppercase rounded-full">Live Audits</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 dark:text-slate-300">
+                          Aggregate calculations run by prospective candidates prior to registration or sign-in
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedUserForPredictions({
+                        uid: 'guest',
+                        email: 'guest@campusai.com.ng',
+                        displayName: 'Guest Scholars (Anonymous Audits)'
+                      })}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
+                    >
+                      <Eye size={12} /> Inspect Guest Audits
+                    </button>
+                  </div>
+
+                  {isUserLoading ? (
+                    <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentUsers.map(u => (
+                        <div key={u.uid} className="p-4 bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-2xl flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
+                              {(u.photoURL && u.photoURL.trim()) ? <img src={u.photoURL.trim()} className="w-full h-full object-cover" alt="" /> : <Users size={20} className="text-gray-300" />}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold dark:text-white flex items-center gap-2">{u.displayName} {u.is_premium && <Star size={10} className="text-yellow-500 fill-current" />}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{u.email}</p>
+                            </div>
+                          </div>
+                          <div className="text-right flex flex-col items-end gap-1">
+                            <p className="text-[9px] font-black text-blue-500 uppercase leading-none">{u.role || 'Scholar'}</p>
+                            <div className="flex flex-col items-end gap-0.5 text-[9px] text-gray-500 dark:text-slate-300 mt-1">
+                              <p className="font-bold">Cut-off Calcs: <span className="text-gray-800 dark:text-gray-200 font-extrabold">{u.lifetime_calculations || u.meritUsageCount || 0}</span></p>
+                              <p className="font-bold">CBT Taken: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{u.lifetime_cbt_tests || 0}</span></p>
+                              <p className="font-bold">CGPA Audits: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{u.lifetime_cgpa_calculations || 0}</span></p>
+                              <p className="font-bold text-[8px] mt-0.5">
+                                Left: <span className={`${u.is_premium ? "text-amber-500" : "text-blue-500"} font-extrabold`}>
+                                  {u.is_premium
+                                    ? `${u.scholarCredits || 0} SP`
+                                    : `${Math.max(0, FREE_USER_LIMIT - (u.daily_requests || 0))} Trial`}
+                                </span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-2">
+                              {u.is_premium && u.email !== 'eiweh123@gmail.com' && (
+                                <button
+                                  onClick={async e => {
+                                    e.stopPropagation();
+                                    if (window.confirm(`Revoke Scholar Pack and reset ${u.displayName} to Free Tier?`)) {
+                                      await updateUserProfile({ scholarCredits: 0, is_premium: false }, u.uid);
+                                      await loadUsers();
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-red-500/10 text-red-500 rounded-lg text-[7px] font-black uppercase hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+                                >
+                                  Revoke SP
+                                </button>
+                              )}
+                              <button
+                                onClick={async e => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`Grant 5 Scholar Credits to ${u.displayName}?`)) {
+                                    await updateUserProfile({ scholarCredits: (u.scholarCredits || 0) + 5, is_premium: true }, u.uid);
+                                    await loadUsers();
+                                  }
+                                }}
+                                className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-[7px] font-black uppercase hover:bg-amber-500 hover:text-white transition-all border border-amber-500/20"
+                              >
+                                Grant 5 SP
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => setSelectedUserForPredictions(u)}
+                              className="mt-1 px-2 py-1 bg-blue-500/10 text-blue-500 rounded-lg text-[7px] font-black uppercase hover:bg-blue-500 hover:text-white transition-all border border-blue-500/20"
+                            >
+                              View Predictions
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── LINK PICTURES / PREVIEWS TAB ── */}
+              {activeTab === 'link_pictures' && (
+                <div className="space-y-8 text-left">
+                  {/* Top Bar Header */}
+                  <div className="p-6 bg-gradient-to-r from-blue-900/20 via-indigo-900/10 to-transparent border border-blue-500/20 rounded-3xl space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                          <ImageIcon size={18} /> Link Preview Pictures Manager
+                        </h3>
+                        <p className="text-xs text-gray-600 dark:text-slate-300 mt-1 max-w-2xl">
+                          Upload custom preview pictures for all app pages & tool links (Calculators, Dashboard, Login, Syllabus, Post-UTME Hub, Directory, etc.). These pictures are rendered on tool cards and OpenGraph social share cards.
+                        </p>
+                      </div>
+                      <button
+                        onClick={loadLinkPreviews}
+                        className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 hover:bg-blue-700 transition-all shadow-md shrink-0 self-start md:self-auto"
+                      >
+                        <RefreshCw size={14} /> Refresh Previews
+                      </button>
+                    </div>
+
+                    {/* Filter & Search */}
+                    <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                      <div className="relative flex-1 w-full">
+                        <Search size={14} className="absolute left-3.5 top-3.5 text-gray-400" />
+                        <input
+                          type="text"
+                          value={previewFilter}
+                          onChange={e => setPreviewFilter(e.target.value)}
+                          placeholder="Search link path or page name (e.g. /calculator, /login, UNILAG...)"
+                          className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-900 rounded-xl text-xs border border-gray-200 dark:border-gray-800 focus:border-blue-500 outline-none dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add Custom Link Preview Card */}
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900/80 rounded-3xl border border-gray-200 dark:border-gray-800 space-y-4">
+                    <h4 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2">
+                      <Plus size={14} className="text-blue-500" /> Add Custom Page / Route Preview Picture
+                    </h4>
+                    <form onSubmit={handleAddCustomLinkItem} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <input
+                        type="text"
+                        value={customLinkPath}
+                        onChange={e => setCustomLinkPath(e.target.value)}
+                        placeholder="Path (e.g. /forum or /scholar-pack)"
+                        className="p-3 bg-white dark:bg-gray-950 rounded-xl text-xs border border-gray-200 dark:border-gray-800 dark:text-white font-mono"
+                      />
+                      <input
+                        type="text"
+                        value={customLinkTitle}
+                        onChange={e => setCustomLinkTitle(e.target.value)}
+                        placeholder="Page Title (e.g. Community Forum)"
+                        className="p-3 bg-white dark:bg-gray-950 rounded-xl text-xs border border-gray-200 dark:border-gray-800 dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={customLinkSubtitle}
+                        onChange={e => setCustomLinkSubtitle(e.target.value)}
+                        placeholder="Subtitle (e.g. Discussions)"
+                        className="p-3 bg-white dark:bg-gray-950 rounded-xl text-xs border border-gray-200 dark:border-gray-800 dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={customLinkImageUrl}
+                        onChange={e => setCustomLinkImageUrl(e.target.value)}
+                        placeholder="Image URL or upload below"
+                        className="p-3 bg-white dark:bg-gray-950 rounded-xl text-xs border border-gray-200 dark:border-gray-800 dark:text-white"
+                      />
+                      <div className="md:col-span-4 flex justify-end">
+                        <button
+                          type="submit"
+                          className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md flex items-center gap-2"
+                        >
+                          <Plus size={14} /> Add Route Item
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Managed Previews Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {(() => {
+                      const mergedMap: Record<string, LinkPreviewItem> = {};
+                      DEFAULT_LINK_PREVIEWS.forEach(item => {
+                        mergedMap[item.path] = { ...item };
+                      });
+                      Object.entries(linkPreviewsMap).forEach(([p, item]) => {
+                        mergedMap[p] = { ...(mergedMap[p] || {}), ...item, path: p };
+                      });
+
+                      const allItems = Object.values(mergedMap);
+                      const filtered = allItems.filter(item => {
+                        if (!previewFilter.trim()) return true;
+                        const query = previewFilter.toLowerCase();
+                        return item.path.toLowerCase().includes(query) ||
+                               item.title.toLowerCase().includes(query) ||
+                               (item.subtitle && item.subtitle.toLowerCase().includes(query));
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="col-span-full p-12 text-center text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-3xl">
+                            No links match "{previewFilter}".
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(item => {
+                        const hasCustomPic = !!item.imageUrl && item.imageUrl.trim().length > 0;
+                        const isUploading = uploadingPath === item.path;
+
+                        return (
+                          <div
+                            key={item.path}
+                            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 flex flex-col justify-between hover:border-blue-500/40 transition-all shadow-sm"
+                          >
+                            <div>
+                              {/* Header & Path */}
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div>
+                                  <h4 className="font-bold text-gray-900 dark:text-white text-sm">
+                                    {item.title}
+                                  </h4>
+                                  <div className="text-[10px] font-mono text-gray-500 dark:text-slate-300 mt-0.5">
+                                    campusai.com.ng{item.path}
+                                  </div>
+                                </div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shrink-0">
+                                  {item.subtitle || 'Route'}
+                                </span>
+                              </div>
+
+                              {/* Preview Box */}
+                              <div className="relative w-full h-36 bg-gray-100 dark:bg-gray-950 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 group">
+                                {hasCustomPic ? (
+                                  <>
+                                    <img
+                                      src={item.imageUrl}
+                                      alt={item.title}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                    <div className="absolute top-2 left-2 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md shadow-md">
+                                      Custom Active
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 p-4 text-center space-y-2">
+                                    <ImageIcon size={28} className="opacity-40" />
+                                    <span className="text-[10px] uppercase font-bold text-gray-400">
+                                      Default Card View (No Picture)
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions & Controls */}
+                            <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-800/80">
+                              {/* File Upload Option */}
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
+                                  Upload Picture File
+                                </label>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  disabled={isUploading}
+                                  onChange={e => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      handleLinkPictureFileUpload(item.path, e.target.files[0], item.title, item.subtitle);
+                                    }
+                                  }}
+                                  className="w-full text-[10px] text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-600 dark:file:text-blue-400 hover:file:bg-blue-100 cursor-pointer"
+                                />
+                              </div>
+
+                              {/* Direct URL Input Option */}
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={previewInputUrls[item.path] !== undefined ? previewInputUrls[item.path] : (item.imageUrl || '')}
+                                  onChange={e => setPreviewInputUrls({ ...previewInputUrls, [item.path]: e.target.value })}
+                                  placeholder="Or paste Image URL..."
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      const val = previewInputUrls[item.path] !== undefined ? previewInputUrls[item.path] : (item.imageUrl || '');
+                                      if (val.trim()) {
+                                        handleLinkPictureUrlSave(item.path, val.trim(), item.title, item.subtitle);
+                                      } else {
+                                        alert('Please enter a valid image URL.');
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 px-3 py-1.5 bg-gray-50 dark:bg-gray-950 rounded-xl text-[10px] border border-gray-200 dark:border-gray-800 dark:text-white"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const val = previewInputUrls[item.path] !== undefined ? previewInputUrls[item.path] : (item.imageUrl || '');
+                                    if (val && val.trim()) {
+                                      handleLinkPictureUrlSave(item.path, val.trim(), item.title, item.subtitle);
+                                    } else {
+                                      alert('Please enter an image URL or upload an image file.');
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-blue-700 transition-all shrink-0"
+                                >
+                                  Save URL
+                                </button>
+                              </div>
+
+                              {/* Delete Action if active */}
+                              {hasCustomPic && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleLinkPictureDelete(item.path)}
+                                  className="w-full py-1.5 bg-rose-500/10 text-rose-500 dark:text-rose-400 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all border border-rose-500/20 flex items-center justify-center gap-1"
+                                >
+                                  <Trash2 size={12} /> Remove Custom Picture
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* ── INTELLIGENCE TAB ── */}
+              {activeTab === 'intelligence' && (
+                <div className="space-y-8 text-left">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Feedback List */}
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-gray-400 flex items-center gap-2">
+                          <Sparkles size={16} className="text-blue-500" /> App Feedback ({feedbackList.length})
+                        </h4>
+                        <button 
+                          onClick={loadIntelligenceData}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                        >
+                          <RefreshCw size={14} className={isIntelligenceLoading ? 'animate-spin' : ''} />
+                        </button>
+                      </div>
+                      
+                      <div className="p-5 bg-blue-50/50 dark:bg-blue-900/10 rounded-[32px] border border-blue-100 dark:border-blue-900/30 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Info size={18} className="text-blue-500" />
+                          <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-900 dark:text-blue-300">Synchronization Guide</h5>
+                        </div>
+                        <p className="text-[10px] text-blue-800 dark:text-blue-400 font-medium leading-relaxed">
+                          Google Maps reviews are external. To display them on the website, copy the content from Google and add them as **Testimonials** in the right-side panel. Enable "Featured" to show them on the homepage.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                        {feedbackList.length === 0 ? (
+                          <div className="p-12 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl text-gray-400 text-xs font-bold">
+                            No feedback received yet.
+                          </div>
+                        ) : (
+                          feedbackList.map((f: any) => (
+                            <div key={f.id} className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                  f.type === 'bug' ? 'bg-red-500 text-white' :
+                                  f.type === 'feature' ? 'bg-blue-500 text-white' :
+                                  f.type === 'correction' ? 'bg-amber-500 text-white' :
+                                  'bg-gray-500 text-white'
+                                }`}>
+                                  {f.type}
+                                </span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase">
+                                  {f.createdAt?.toDate ? f.createdAt.toDate().toLocaleDateString() : new Date(f.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-tight">{f.subject || 'Untitled Feedback'}</p>
+                              <p className="text-xs text-gray-600 dark:text-slate-300 font-medium leading-relaxed">{f.content}</p>
+                              <div className="pt-2 flex items-center justify-between border-t border-gray-100 dark:border-gray-800">
+                                <span className="text-[10px] font-bold text-blue-600">{f.email || 'Anonymous'}</span>
+                                <span className="text-[8px] font-black uppercase text-gray-400">{f.status}</span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Testimonials Management */}
+                    <div className="space-y-6">
+                      <h4 className="text-xs font-black uppercase text-gray-400 flex items-center gap-2">
+                        <Star size={16} className="text-amber-500" /> Manage Testimonials
+                      </h4>
+
+                      <form onSubmit={handleAddTestimonial} className="p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <input 
+                            placeholder="Scholar Name"
+                            value={newTestimonial.name || ''}
+                            onChange={e => setNewTestimonial({...newTestimonial, name: e.target.value})}
+                            className="w-full p-3 bg-white dark:bg-gray-950 rounded-xl text-xs font-bold outline-none border-transparent focus:border-blue-500"
+                          />
+                          <input 
+                            placeholder="Role (e.g. 2024 Aspirant)"
+                            value={newTestimonial.role || ''}
+                            onChange={e => setNewTestimonial({...newTestimonial, role: e.target.value})}
+                            className="w-full p-3 bg-white dark:bg-gray-950 rounded-xl text-xs font-bold outline-none border-transparent focus:border-blue-500"
+                          />
+                        </div>
+                        <input 
+                          placeholder="Institution (Optional)"
+                          value={newTestimonial.school || ''}
+                          onChange={e => setNewTestimonial({...newTestimonial, school: e.target.value})}
+                          className="w-full p-3 bg-white dark:bg-gray-950 rounded-xl text-xs font-bold outline-none border-transparent focus:border-blue-500"
+                        />
+                        <textarea 
+                          placeholder="Testimonial Content..."
+                          rows={3}
+                          value={newTestimonial.content || ''}
+                          onChange={e => setNewTestimonial({...newTestimonial, content: e.target.value})}
+                          className="w-full p-3 bg-white dark:bg-gray-950 rounded-xl text-xs font-bold outline-none border-transparent focus:border-blue-500 resize-none"
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase text-gray-400">Rating:</span>
+                            <select 
+                              value={newTestimonial.rating || 5}
+                              onChange={e => setNewTestimonial({...newTestimonial, rating: parseInt(e.target.value)})}
+                              className="bg-white dark:bg-gray-950 rounded-lg text-xs font-bold p-1"
+                            >
+                              {[5,4,3,2,1].map(n => <option key={n} value={n}>{n} Stars</option>)}
+                            </select>
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={newTestimonial.isFeatured}
+                              onChange={e => setNewTestimonial({...newTestimonial, isFeatured: e.target.checked})}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-[10px] font-black uppercase text-gray-400">Featured</span>
+                          </label>
+                        </div>
+                        <button 
+                          disabled={isIntelligenceLoading}
+                          className="w-full py-3 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          {isIntelligenceLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> Add Testimonial</>}
+                        </button>
+                      </form>
+
+                      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {testimonials.map((t: any) => (
+                          <div key={t.id} className="p-4 bg-white dark:bg-gray-950 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-start gap-4">
+                            <div className="w-10 h-10 bg-gray-100 dark:bg-gray-900 rounded-xl flex items-center justify-center shrink-0">
+                              <User size={20} className="text-gray-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <h5 className="text-[10px] font-black text-gray-900 dark:text-white uppercase truncate">{t.name}</h5>
+                                <button 
+                                  onClick={() => handleDeleteTestimonial(t.id)}
+                                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                              <p className="text-[9px] text-gray-500 dark:text-slate-300 font-bold uppercase truncate mb-2">{t.role} {t.school ? `• ${t.school}` : ''}</p>
+                              <p className="text-[10px] text-gray-600 dark:text-slate-300 line-clamp-2 italic">"{t.content}"</p>
+                              <div className="flex gap-0.5 mt-2">
+                                {[...Array(t.rating)].map((_, i) => <Star key={`${t.id}-star-${i}`} size={8} className="text-amber-400 fill-amber-400" />)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'stats' && <CalculationStats />}
+              {activeTab === 'pdf_management' && (
+                <div className="p-6">
+                  <h3 className="text-lg font-bold mb-4">PDF File Management</h3>
+                  <button 
+                    onClick={() => setIsPdfModalOpen(true)}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Manage PDFs
+                  </button>
+                  <FileUploadHubModal 
+                    isOpen={isPdfModalOpen} 
+                    onClose={() => setIsPdfModalOpen(false)} 
+                  />
+                </div>
+              )}
+              {activeTab === 'notifications' && (
+                <div className="space-y-8">
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase text-gray-400 flex items-center gap-2"><Brain size={16} className="text-red-500" /> ASUU Intelligence</h4>
+                      <button
+                        onClick={() => setAsuuStatus(s => ({ ...s, isActive: !s.isActive }))}
+                        className={`w-12 h-6 rounded-full relative transition-colors ${asuuStatus.isActive ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+                      >
+                        <motion.div animate={{ x: asuuStatus.isActive ? 24 : 2 }} className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-sm" />
+                      </button>
+                    </div>
+                    <div className="space-y-4">
+                      <input value={asuuStatus.status || ''} onChange={e => setAsuuStatus(s => ({ ...s, status: e.target.value }))}
+                        className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl dark:text-white font-bold outline-none border border-transparent focus:border-red-500"
+                        placeholder="Header (e.g. Strike Alert)" />
+                      <textarea value={asuuStatus.summary || ''} onChange={e => setAsuuStatus(s => ({ ...s, summary: e.target.value }))}
+                        className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl dark:text-white outline-none h-32"
+                        placeholder="Strike details..." />
+                      <button onClick={handleUpdateAsuu} disabled={isContentLoading}
+                        className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-red-500/20 disabled:opacity-50">
+                        Sync To Network
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Webhook Logs Section */}
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                        <Activity size={16} className="text-blue-500" /> Webhook & AI Monitor Logs
+                      </h4>
+                      <button
+                        onClick={() => loadAnalyticsData()}
+                        className="px-3 py-1 bg-gray-200 dark:bg-gray-800 rounded-full text-[9px] font-black uppercase flex items-center gap-1 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        {analyticsLoading && <Loader2 size={10} className="animate-spin" />} Refresh
+                      </button>
+                    </div>
+
+                    {/* Manual Ingest Bar */}
+                    <div className="p-4 bg-white dark:bg-gray-950 rounded-2xl border border-gray-100 dark:border-gray-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-1">
+                          <Zap size={12} className="text-amber-500" /> Manual Firecrawl Monitor URL Ingest
+                        </label>
+                        {manualMonitorStatus && (
+                          <span className="text-[10px] font-medium text-gray-500">{manualMonitorStatus}</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={manualMonitorUrl}
+                          onChange={(e) => setManualMonitorUrl(e.target.value)}
+                          placeholder="e.g. https://myschool.ng/news/post-utme-2026-list-of-schools-that-have-released-forms"
+                          className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-xs outline-none focus:border-blue-500 dark:text-white"
+                        />
+                        <button
+                          onClick={handleRunManualMonitor}
+                          disabled={isProcessingMonitor || !manualMonitorUrl.trim()}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 disabled:opacity-50 transition-colors"
+                        >
+                          {isProcessingMonitor ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                          Scrape & Process
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                      {adminLogs.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-4">No recent webhook activity found.</p>
+                      ) : (
+                        adminLogs.map((log) => (
+                          <div key={log.id} className="p-4 bg-white dark:bg-gray-950 rounded-2xl border border-gray-100 dark:border-gray-800 space-y-2 relative group">
+                            <div className="flex justify-between items-start gap-4">
+                              <h5 className="text-sm font-bold text-gray-900 dark:text-white">{log.title}</h5>
+                              <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">
+                                {new Date(log.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 break-words">{log.message}</p>
+                            
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                log.type === 'webhook_success' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
+                                log.type === 'webhook_error' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
+                                'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                              }`}>
+                                {log.type}
+                              </span>
+                              {log.sourceUrl && (
+                                <a href={log.sourceUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline">
+                                  View Source
+                                </a>
+                              )}
+                              {log.newsId && (
+                                <button onClick={() => { setActiveTab('content'); loadAdminNews(); }} className="text-[10px] text-red-500 hover:underline">
+                                  View Article
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ADMISSIONS KB TAB ── */}
+              {activeTab === 'admissions_kb' && (
+                <div className="space-y-8 text-left">
+                  <div className="p-8 bg-blue-600/10 border border-blue-500/20 rounded-[32px] flex flex-col md:flex-row items-center gap-6">
+                    <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-600/20">
+                      <FileJson size={32} />
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                      <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">Admissions Intelligence Seeder</h4>
+                      <p className="text-xs text-gray-400 mt-1">Write baseline JAMB requirement data (e.g. Computer Science & UNILAG mapping) into your Firestore database.</p>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        setIsContentLoading(true);
+                        setSeedStatus(null);
+                        try {
+                          const res = await admissionsService.seedAllBaselineData();
+                          setSeedStatus({
+                            type: 'success',
+                            message: `✅ Successfully seeded baseline data to Firestore: ${res.coursesSeeded} Courses, ${res.institutionsSeeded} Institutions, and ${res.articlesSeeded} JAMB Policy Articles!`
+                          });
+                        } catch (e: any) {
+                          setSeedStatus({
+                            type: 'error',
+                            message: `❌ Seeding failed: ${e?.message || 'Unknown error'}`
+                          });
+                        } finally {
+                          setIsContentLoading(false);
+                        }
+                      }}
+                      disabled={isContentLoading}
+                      className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
+                    >
+                      {isContentLoading ? <Loader2 size={16} className="animate-spin" /> : <><Sparkles size={16} /> Seed Initial Data</>}
+                    </button>
+                  </div>
+
+                  {seedStatus && (
+                    <div className={`p-4 rounded-2xl border text-xs font-bold transition-all ${
+                      seedStatus.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+                    }`}>
+                      {seedStatus.message}
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Add/Update Course</h4>
+                      <textarea 
+                        className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl text-xs font-mono dark:text-gray-300 h-40 border-transparent focus:border-blue-500 outline-none"
+                        placeholder='{ "courseName": "...", "utmeSubjects": ["English", "Maths"], "olevelRequirements": ["5 Credits"] }'
+                        id="courseJson"
+                      />
+                      <button 
+                        onClick={async () => {
+                          const el = document.getElementById('courseJson') as HTMLTextAreaElement;
+                          try {
+                            const data = JSON.parse(el.value);
+                            setIsContentLoading(true);
+                            await admissionsService.upsertMasterCourse(data);
+                            alert("✅ Course updated successfully! Version history and search index created.");
+                            el.value = '';
+                          } catch (e: any) { 
+                            alert(`❌ Validation Error: ${e.message}`); 
+                          } finally {
+                            setIsContentLoading(false);
+                          }
+                        }}
+                        disabled={isContentLoading}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest disabled:opacity-50"
+                      >
+                        {isContentLoading ? 'Publishing...' : 'Validate & Publish Course'}
+                      </button>
+                    </div>
+
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Add/Update Institution</h4>
+                      <textarea 
+                        className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl text-xs font-mono dark:text-gray-300 h-40 border-transparent focus:border-blue-500 outline-none"
+                        placeholder='{ "name": "...", "type": "University", "category": "Federal", "courses": [] }'
+                        id="instJson"
+                      />
+                      <button 
+                        onClick={async () => {
+                          const el = document.getElementById('instJson') as HTMLTextAreaElement;
+                          try {
+                            const data = JSON.parse(el.value);
+                            setIsContentLoading(true);
+                            await admissionsService.upsertInstitution(data);
+                            alert("✅ Institution updated successfully! Version history and search index created.");
+                            el.value = '';
+                          } catch (e: any) { 
+                            alert(`❌ Validation Error: ${e.message}`); 
+                          } finally {
+                            setIsContentLoading(false);
+                          }
+                        }}
+                        disabled={isContentLoading}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest disabled:opacity-50"
+                      >
+                        {isContentLoading ? 'Publishing...' : 'Validate & Publish Institution'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* KB Article Bulk Importer */}
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Add/Update KB Article(s)</h4>
+                    <p className="text-xs text-gray-500 mb-2">Paste a single article JSON object or an array of article objects to bulk import.</p>
+                    <textarea 
+                      className="w-full p-4 bg-white dark:bg-gray-950 rounded-2xl text-xs font-mono dark:text-gray-300 h-64 border-transparent focus:border-blue-500 outline-none"
+                      placeholder='[{ "id": "kb-unn-001", "title": "...", "content": "..." }]'
+                      id="articleJson"
+                    />
+                    <button 
+                      onClick={async () => {
+                        const el = document.getElementById('articleJson') as HTMLTextAreaElement;
+                        try {
+                          const data = JSON.parse(el.value);
+                          setIsContentLoading(true);
+                          if (Array.isArray(data)) {
+                            let successCount = 0;
+                            for (const item of data) {
+                              try {
+                                await admissionsService.upsertAdmissionArticle(item);
+                                successCount++;
+                              } catch (e: any) {
+                                console.error("Error inserting article", item.id, e);
+                              }
+                            }
+                            alert(`✅ Imported ${successCount}/${data.length} articles successfully!`);
+                          } else {
+                            await admissionsService.upsertAdmissionArticle(data);
+                            alert("✅ Article updated successfully! Version history and search index created.");
+                          }
+                          el.value = '';
+                        } catch (e: any) { 
+                          alert(`❌ Validation Error: ${e.message}`); 
+                        } finally {
+                          setIsContentLoading(false);
+                        }
+                      }}
+                      disabled={isContentLoading}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest disabled:opacity-50"
+                    >
+                      {isContentLoading ? 'Publishing...' : 'Validate & Publish Article(s)'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ACCURACY & PIPELINE EVALUATION TAB ── */}
+              {activeTab === 'accuracy' && (
+                <div className="space-y-8 text-left">
+                  {/* Pipeline Header */}
+                  <div className="p-8 bg-gradient-to-br from-slate-900 via-cyan-950 to-indigo-950 rounded-[32px] border border-cyan-500/20 text-white space-y-4 shadow-2xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Sparkles size={18} className="text-cyan-400" />
+                          <h3 className="text-base font-black uppercase tracking-wider text-cyan-400">
+                            CampusAI Decision Engine Evaluation
+                          </h3>
+                        </div>
+                        <p className="text-xs text-gray-300 font-medium max-w-2xl leading-relaxed">
+                          Measuring model prediction accuracy, user feedback helpfulness, and actual JAMB/Post-UTME admission outcomes across Nigerian higher institutions.
+                        </p>
+                      </div>
+                      <button
+                        onClick={loadAccuracyData}
+                        disabled={isAccuracyLoading}
+                        className="px-5 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center gap-2 self-start sm:self-center shrink-0 active:scale-95"
+                      >
+                        <RefreshCw size={14} className={isAccuracyLoading ? 'animate-spin' : ''} />
+                        Refresh Benchmarks
+                      </button>
+                    </div>
+
+                    {/* Quick Metric Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-white/10">
+                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col justify-between">
+                        <div>
+                          <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Global Predictions</p>
+                          <p className="text-2xl font-black text-white mt-1">
+                            {accuracyStats?.totalPredictions ?? 0}
+                          </p>
+                          <p className="text-[8.5px] text-gray-400 font-medium mt-1">Logged in Firestore</p>
+                        </div>
+                        <button
+                          onClick={() => setSelectedUserForPredictions({
+                            uid: 'all',
+                            email: 'all@campusai.com.ng',
+                            displayName: 'All Platform Predictions'
+                          })}
+                          className="mt-3 px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 w-fit"
+                        >
+                          <Eye size={10} /> Inspect Stream
+                        </button>
+                      </div>
+
+                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Model Accuracy</p>
+                        <p className="text-2xl font-black text-emerald-400 mt-1">
+                          {accuracyStats?.confirmedCount ? `${accuracyStats.overallAccuracy}%` : 'N/A'}
+                        </p>
+                        <p className="text-[8.5px] text-emerald-400/80 font-bold mt-1">
+                          {accuracyStats?.confirmedCount ?? 0} Confirmed Outcomes
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Helpfulness Index</p>
+                        <p className="text-2xl font-black text-cyan-400 mt-1">
+                          {accuracyStats?.feedbackTotal ? `${accuracyStats.helpfulnessRate}%` : 'N/A'}
+                        </p>
+                        <p className="text-[8.5px] text-cyan-300/80 font-bold mt-1">
+                          {accuracyStats?.feedbackTotal ?? 0} User Ratings
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest">High Conf. Match</p>
+                        <p className="text-2xl font-black text-purple-400 mt-1">
+                          {accuracyStats?.confidenceMatrix?.High?.total
+                            ? `${Math.round((accuracyStats.confidenceMatrix.High.correct / accuracyStats.confidenceMatrix.High.total) * 100)}%`
+                            : 'N/A'}
+                        </p>
+                        <p className="text-[8.5px] text-purple-300/80 font-bold mt-1">
+                          {accuracyStats?.confidenceMatrix?.High?.total ?? 0} High Conf. Validated
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Global Verdict & Probability Distribution */}
+                    {accuracyStats?.verdictDistribution && (
+                      <div className="pt-4 border-t border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-1.5">
+                            <Brain size={12} className="text-cyan-400" />
+                            Global Verdict & Probability Distribution
+                          </p>
+                          <button
+                            onClick={() => setSelectedUserForPredictions({
+                              uid: 'all',
+                              email: 'all@campusai.com.ng',
+                              displayName: 'All Platform Predictions'
+                            })}
+                            className="text-[9px] font-bold text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye size={10} /> Inspect Full Stream
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 size={11} /> High Probability
+                              </span>
+                            </div>
+                            <p className="text-xl font-black text-white mt-1">{accuracyStats.verdictDistribution.high}</p>
+                            <p className="text-[8.5px] text-emerald-300/70 font-medium">Highly Likely / Safe</p>
+                          </div>
+
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase text-amber-400 flex items-center gap-1">
+                                <AlertTriangle size={11} /> Borderline / Compet.
+                              </span>
+                            </div>
+                            <p className="text-xl font-black text-white mt-1">{accuracyStats.verdictDistribution.borderline}</p>
+                            <p className="text-[8.5px] text-amber-300/70 font-medium">Competitive Band</p>
+                          </div>
+
+                          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase text-rose-400 flex items-center gap-1">
+                                <XCircle size={11} /> Low Probability
+                              </span>
+                            </div>
+                            <p className="text-xl font-black text-white mt-1">{accuracyStats.verdictDistribution.low}</p>
+                            <p className="text-[8.5px] text-rose-300/70 font-medium">Risky / Low Chance</p>
+                          </div>
+
+                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase text-red-400 flex items-center gap-1">
+                                <XCircle size={11} /> Disqualified
+                              </span>
+                            </div>
+                            <p className="text-xl font-black text-white mt-1">{accuracyStats.verdictDistribution.disqualified}</p>
+                            <p className="text-[8.5px] text-red-300/70 font-medium">Ineligible (0%)</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Architecture Pipeline Visualizer */}
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <Brain size={16} className="text-cyan-500" /> Pipeline Verification Flow
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-[8.5px] font-black uppercase tracking-wider">
+                      {[
+                        '1. Student Input',
+                        '2. Calculator',
+                        '3. Knowledge Base',
+                        '4. Official Search',
+                        '5. Evidence Extract',
+                        '6. Conflict Resolution',
+                        '7. AI Reasoning',
+                        '8. Evaluation Loop'
+                      ].map((step, idx) => (
+                        <div key={idx} className="p-3 bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between items-center min-h-[64px]">
+                          <span className="text-cyan-500 text-[10px]">0{idx + 1}</span>
+                          <span className="text-gray-900 dark:text-white leading-tight font-extrabold">{step.split('. ')[1]}</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1"></span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Accuracy by University & Course */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Uni Accuracy Breakdown */}
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                        <Globe size={16} className="text-blue-500" /> University Calibration Metrics
+                      </h4>
+                      <div className="space-y-2">
+                        {Object.keys(accuracyStats?.byUni || {}).length > 0 ? (
+                          Object.entries(accuracyStats.byUni).map(([uni, data]: any) => (
+                            <div key={uni} className="p-3.5 bg-white dark:bg-gray-950 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-black text-gray-900 dark:text-white truncate max-w-[200px]">{uni}</p>
+                                <p className="text-[9px] text-gray-400 font-semibold">{data.predictions} predictions • {data.total} outcomes confirmed</p>
+                              </div>
+                              <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs rounded-lg border border-emerald-500/20">
+                                {data.total > 0 ? `${Math.round((data.correct / data.total) * 100)}%` : 'Awaiting Outcomes'}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-8 text-center text-gray-400 text-xs font-semibold border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
+                            No university prediction logs recorded in Firestore yet.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Recent Grounded Prediction Logs */}
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                        <Activity size={16} className="text-purple-500" /> Recent Prediction Records
+                      </h4>
+                      <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                        {(accuracyStats?.recentPredictions && accuracyStats.recentPredictions.length > 0) ? (
+                          accuracyStats.recentPredictions.map((pred: any) => (
+                            <div key={pred.id || pred.predictionId} className="p-3 bg-white dark:bg-gray-950 rounded-2xl border border-gray-100 dark:border-gray-800 text-xs flex justify-between items-center">
+                              <div>
+                                <p className="font-extrabold text-gray-900 dark:text-white">{pred.course} ({pred.university})</p>
+                                <p className="text-[9px] text-gray-400">Score: {pred.aggregateScore}% • Verdict: {pred.verdict}</p>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                pred.actualOutcome === 'admitted' ? 'bg-emerald-500 text-white' :
+                                pred.actualOutcome === 'not_admitted' ? 'bg-red-500 text-white' :
+                                'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-slate-300'
+                              }`}>
+                                {pred.actualOutcome || 'Pending Outcome'}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-8 text-center text-gray-400 text-xs font-bold border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
+                            Prediction records log automatically when users launch aggregate calculations.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+                </div>
+
+                {/* ── Mobile Bottom Quick Navigation Dock ── */}
+                <div className="lg:hidden shrink-0 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 px-2 py-2 flex items-center justify-around z-30 shadow-2xl">
+                  <button
+                    type="button"
+                    onClick={() => selectTab('analytics')}
+                    className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all active:scale-95 ${
+                      activeTab === 'analytics'
+                        ? 'text-red-400 font-black'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Activity size={18} className={activeTab === 'analytics' ? 'text-red-500' : 'text-slate-400'} />
+                    <span className="text-[10px] tracking-tight">Analytics</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => selectTab('cutoffs')}
+                    className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all active:scale-95 ${
+                      activeTab === 'cutoffs'
+                        ? 'text-red-400 font-black'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Layout size={18} className={activeTab === 'cutoffs' ? 'text-red-500' : 'text-slate-400'} />
+                    <span className="text-[10px] tracking-tight">Cutoffs</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => selectTab('content')}
+                    className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all active:scale-95 ${
+                      activeTab === 'content'
+                        ? 'text-red-400 font-black'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Newspaper size={18} className={activeTab === 'content' ? 'text-red-500' : 'text-slate-400'} />
+                    <span className="text-[10px] tracking-tight">Editorial</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => selectTab('tool_users')}
+                    className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all active:scale-95 ${
+                      activeTab === 'tool_users'
+                        ? 'text-red-400 font-black'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Calculator size={18} className={activeTab === 'tool_users' ? 'text-red-500' : 'text-slate-400'} />
+                    <span className="text-[10px] tracking-tight">Scholars</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileDrawerOpen(true)}
+                    className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl text-slate-400 hover:text-white transition-all active:scale-95"
+                  >
+                    <Layers size={18} className="text-red-400" />
+                    <span className="text-[10px] tracking-tight font-bold">All (15)</span>
+                  </button>
+                </div>
+              </main>
+            </div>
+          </div>
+        )}
+
+        {/* ── Command Palette (Ctrl+K / ⌘K) Modal ── */}
+        <AnimatePresence>
+          {isCommandPaletteOpen && (
+            <div className="fixed inset-0 z-[3000] flex items-start justify-center pt-20 px-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsCommandPaletteOpen(false)}
+                className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -20 }}
+                animate={{ opacity: 1, scale: 1, y: -20 }}
+                exit={{ opacity: 0, scale: 0.95, y: -20 }}
+                className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10"
+              >
+                {/* Search Input Bar */}
+                <div className="p-4 border-b border-slate-800 flex items-center gap-3">
+                  <Search size={20} className="text-red-500 shrink-0" />
+                  <input
+                    type="text"
+                    value={paletteSearch}
+                    onChange={e => setPaletteSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSelectedPaletteIndex(i => (i + 1) % Math.max(1, filteredPaletteItems.length));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSelectedPaletteIndex(i => (i - 1 + filteredPaletteItems.length) % Math.max(1, filteredPaletteItems.length));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const selected = filteredPaletteItems[selectedPaletteIndex];
+                        if (selected) {
+                          selectTab(selected.id);
+                        }
+                      }
+                    }}
+                    placeholder="Search tools, analytics, cutoffs, editorial, users..."
+                    autoFocus
+                    className="w-full bg-transparent text-sm sm:text-base font-semibold text-white placeholder-slate-500 outline-none"
+                  />
+                  {paletteSearch && (
+                    <button
+                      onClick={() => setPaletteSearch('')}
+                      className="text-slate-500 hover:text-white p-1 rounded"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                  <kbd className="hidden sm:inline-block text-[10px] font-mono bg-slate-950 text-slate-400 border border-slate-800 px-2 py-0.5 rounded-lg">
+                    ESC
+                  </kbd>
+                </div>
+
+                {/* Results List */}
+                <div className="max-h-96 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                  {filteredPaletteItems.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 text-xs font-semibold">
+                      No matching admin sections found for &quot;{paletteSearch}&quot;
+                    </div>
+                  ) : (
+                    filteredPaletteItems.map((item, idx) => {
+                      const Icon = item.icon;
+                      const isHighlighted = idx === selectedPaletteIndex;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => selectTab(item.id)}
+                          onMouseEnter={() => setSelectedPaletteIndex(idx)}
+                          className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-all ${
+                            isHighlighted
+                              ? 'bg-red-600/15 border border-red-500/30 text-white'
+                              : 'hover:bg-slate-800/50 text-slate-300 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`p-2 rounded-xl shrink-0 ${isHighlighted ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                              <Icon size={16} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-white truncate">{item.label}</span>
+                                <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold px-1.5 py-0.2 rounded bg-slate-950/60 border border-slate-800">
+                                  {item.category}
+                                </span>
+                                {isActive && (
+                                  <span className="text-[9px] uppercase tracking-wider text-emerald-400 font-black">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">{item.desc}</p>
+                            </div>
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 shrink-0 ml-2">
+                            Jump ↵
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Footer Guide */}
+                <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-2">
+                    <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded font-mono text-[9px]">↑↓</kbd> navigate
+                    <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded font-mono text-[9px]">↵</kbd> select
+                    <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded font-mono text-[9px]">esc</kbd> close
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-500">15 Admin Sections</span>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Global Prediction & Audit Inspection Modal */}
+        <PredictionDetailsModal
+          isOpen={!!selectedUserForPredictions}
+          onClose={() => setSelectedUserForPredictions(null)}
+          userId={selectedUserForPredictions?.uid || ''}
+          userEmail={selectedUserForPredictions?.email || ''}
+          userName={selectedUserForPredictions?.displayName || selectedUserForPredictions?.email || 'Scholar'}
+          userProfile={selectedUserForPredictions}
+        />
+
+        {/* ── News Content Editor Overlay ── */}
+        <AnimatePresence>
+          {editingNews && (
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center px-4">
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
+                onClick={() => setEditingNews(null)}
+                className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-4xl max-h-[90vh] bg-white dark:bg-gray-950 rounded-[40px] shadow-2xl border border-white/10 overflow-hidden flex flex-col"
+              >
+                <div className="p-8 border-b border-gray-100 dark:border-gray-900 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl">
+                      <Zap size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Precision Editor</h2>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sanitize and refine intelligence reports</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => {
+                        if (editingNews && editingNews.fullContent) {
+                          setEditingNews({ ...editingNews, fullContent: handleSanitizeContent(editingNews.fullContent) });
+                        }
+                      }}
+                      className="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                    >
+                      <Sparkles size={14} /> Sanitize
+                    </button>
+                    <button onClick={() => setEditingNews(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-full transition-colors">
+                      <X size={20} className="text-gray-400" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-8 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Headline</label>
+                    <input 
+                      type="text"
+                      value={editingNews.title || ''}
+                      onChange={e => setEditingNews({ ...editingNews, title: e.target.value })}
+                      className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Category</label>
+                      <select 
+                        value={editingNews.category || 'National'}
+                        onChange={e => setEditingNews({ ...editingNews, category: e.target.value as UniversityCategory })}
+                        className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all text-gray-900 dark:text-white"
+                      >
+                        {['National', 'Jobs', 'Scholarships', 'Admission', 'Institution', 'JAMB', 'Federal', 'State', 'Private', 'Polytechnic', 'COE', 'NYSC'].map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Publication Date</label>
+                      <input 
+                        type="text"
+                        value={editingNews.date || ''}
+                        onChange={e => setEditingNews({ ...editingNews, date: e.target.value })}
+                        placeholder="e.g. September 27, 2026"
+                        className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Card Summary (Excerpt)</label>
+                    <textarea 
+                      rows={2}
+                      value={editingNews.excerpt || ''}
+                      onChange={e => setEditingNews({ ...editingNews, excerpt: e.target.value })}
+                      className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all text-gray-900 dark:text-white resize-none"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Official Source URL (Optional)</label>
+                    <input 
+                      type="url"
+                      value={editingNews.sourceUrl || ''}
+                      onChange={e => setEditingNews({ ...editingNews, sourceUrl: e.target.value })}
+                      placeholder="https://portal.institution.edu.ng/..."
+                      className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                <ArticleImagesUploader
+                  images={editingNews.images || (editingNews.image ? [editingNews.image] : [])}
+                  featuredImage={editingNews.image || ''}
+                  onChangeImages={(imgs, feat) => setEditingNews({ ...editingNews, images: imgs, image: feat })}
+                  onInsertMarkdown={(imgUrl) => {
+                    setEditingNews({
+                      ...editingNews,
+                      fullContent: (editingNews.fullContent || '') + `\n\n![Image](${imgUrl})\n\n`
+                    });
+                  }}
+                />
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4 flex items-center justify-between">
+                    <span>Full Article Intelligence (Markdown)</span>
+                    <span className="text-blue-500 lowercase font-bold tracking-normal italic">Markdown is supported</span>
+                  </label>
+                  <textarea 
+                    value={editingNews.fullContent || ''}
+                    onChange={e => setEditingNews({ ...editingNews, fullContent: e.target.value })}
+                    rows={15}
+                    className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-[32px] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all text-gray-900 dark:text-white font-mono leading-relaxed resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-8 border-t border-gray-100 dark:border-gray-900 shrink-0">
+                <button
+                  onClick={handleSaveNewsEdits}
+                  disabled={isSavingNews}
+                  className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                >
+                  {isSavingNews ? <Loader2 className="animate-spin" /> : <><Check size={20} /> Commit Updates to Cloud</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {previewNews && (
+          <div className="fixed inset-0 z-[100] bg-white dark:bg-gray-950 overflow-y-auto no-scrollbar">
+            <div className="sticky top-0 z-[110] bg-white/80 dark:bg-gray-950/80 backdrop-blur-md p-4 border-b border-gray-100 dark:border-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setPreviewNews(null)}
+                  className="p-3 bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-slate-300 rounded-2xl hover:scale-105 active:scale-95 transition-all"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <div>
+                  <h2 className="text-xs font-black uppercase tracking-widest text-blue-600">Review Mode</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Verifying article authenticity</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleApproveNews(previewNews.id);
+                    setPreviewNews(null);
+                  }}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  <CheckCircle2 size={16} /> Approve & Publish
+                </button>
+              </div>
+            </div>
+            
+            <div className="max-w-4xl mx-auto px-4 py-12">
+              <NewsDetailView 
+                news={previewNews} 
+                user={null} 
+                onClose={() => setPreviewNews(null)} 
+                relatedNews={[]} 
+                onSelectRelated={() => {}} 
+                onLoginRequest={() => {}}
+                isAdmin={true}
+              />
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default AdminPanel;

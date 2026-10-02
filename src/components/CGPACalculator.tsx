@@ -1,0 +1,952 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Calculator, Award, Info, Brain, TrendingUp, Sparkles, 
+  CheckCircle2, Target, BookOpen, Clock, 
+  GraduationCap, FileText, Plus, Trash2, RefreshCw, Download, ChevronDown, ChevronUp, ArrowRight
+} from 'lucide-react';
+import { analyzeCGPA } from '../services/premiumToolsService';
+import { trackCalculatorUsed, trackCGPAInteraction } from '../services/analytics';
+import { logUserActivity, saveCalculationAttempt, saveUserCGPA, getUserCGPA, saveGlobalCgpaRecord } from '../services/dbService';
+import { incrementCgpaUsage } from '../services/userService';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Markdown from 'react-markdown';
+
+interface Course {
+  id: string;
+  code: string;
+  units: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+}
+
+interface Semester {
+  id: string;
+  name: string;
+  courses: Course[];
+}
+
+interface CGPACalculatorProps {
+  user?: any;
+  isPremium?: boolean;
+  onUpgrade?: () => void;
+  onLoginRequest?: () => void;
+  onSignUpRequest?: () => void;
+}
+
+export const CGPACalculator: React.FC<CGPACalculatorProps> = ({ user, isPremium, onUpgrade, onLoginRequest, onSignUpRequest }) => {
+  const navigate = useNavigate();
+
+
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [scale, setScale] = useState<5 | 4>(5);
+  const [semesters, setSemesters] = useState<Semester[]>([
+    {
+      id: 'sem-1',
+      name: 'Year 1 - First Semester',
+      courses: [
+        { id: 'c-1', code: 'GST111', units: 2, grade: 'A' },
+        { id: 'c-2', code: 'MTH101', units: 3, grade: 'B' },
+        { id: 'c-3', code: 'CHM101', units: 3, grade: 'A' },
+        { id: 'c-4', code: 'PHY101', units: 3, grade: 'C' }
+      ]
+    }
+  ]);
+  const [activeSemesterId, setActiveSemesterId] = useState<string>('sem-1');
+  const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [newSemName, setNewSemName] = useState('');
+
+  useEffect(() => {
+    const loadCGPA = async () => {
+      if (!user) {
+        setIsDataLoaded(true);
+        return;
+      }
+      try {
+        const data = await getUserCGPA(user.uid);
+        if (data) {
+          if (data.semesters && data.semesters.length > 0) {
+            setSemesters(data.semesters);
+            setActiveSemesterId(data.semesters[0].id);
+          }
+          if (data.scale) {
+            setScale(data.scale);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading CGPA", err);
+      } finally {
+        setIsDataLoaded(true);
+      }
+    };
+    loadCGPA();
+  }, [user]);
+
+  // Grade point mapping
+  const getGradePoint = (grade: string, currentScale: 5 | 4) => {
+    const g = grade.toUpperCase();
+    if (currentScale === 5) {
+      if (g === 'A') return 5;
+      if (g === 'B') return 4;
+      if (g === 'C') return 3;
+      if (g === 'D') return 2;
+      if (g === 'E') return 1;
+      return 0;
+    } else {
+      if (g === 'A') return 4;
+      if (g === 'B') return 3;
+      if (g === 'C') return 2;
+      if (g === 'D') return 1;
+      return 0;
+    }
+  };
+
+  // Calculations
+  const calculateSemesterStats = (courses: Course[]) => {
+    let totalUnits = 0;
+    let totalPoints = 0;
+    courses.forEach(c => {
+      const units = Number(c.units) || 0;
+      const gp = getGradePoint(c.grade, scale);
+      totalUnits += units;
+      totalPoints += units * gp;
+    });
+    const gpa = totalUnits > 0 ? (totalPoints / totalUnits).toFixed(2) : '0.00';
+    return { totalUnits, totalPoints, gpa: Number(gpa) };
+  };
+
+  // Cumulative calculation
+  const totalCumulativeUnits = semesters.reduce((acc, sem) => acc + calculateSemesterStats(sem.courses).totalUnits, 0);
+  const totalCumulativePoints = semesters.reduce((acc, sem) => acc + calculateSemesterStats(sem.courses).totalPoints, 0);
+  const cumulativeCGPA = totalCumulativeUnits > 0 ? (totalCumulativePoints / totalCumulativeUnits).toFixed(2) : '0.00';
+
+  // Degree classification
+  const getDegreeClass = (cgpaNum: number, currentScale: 5 | 4) => {
+    if (currentScale === 5) {
+      if (cgpaNum >= 4.50) return { title: 'First Class Honours', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200' };
+      if (cgpaNum >= 3.50) return { title: 'Second Class Upper (2.1)', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border-blue-200' };
+      if (cgpaNum >= 2.40) return { title: 'Second Class Lower (2.2)', color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border-purple-200' };
+      if (cgpaNum >= 1.50) return { title: 'Third Class Honours', color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200' };
+      if (cgpaNum >= 1.00) return { title: 'Pass Degree', color: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border-orange-200' };
+      return { title: 'Academic Probation / Fail', color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-200' };
+    } else {
+      if (cgpaNum >= 3.50) return { title: 'First Class Honours', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200' };
+      if (cgpaNum >= 3.00) return { title: 'Second Class Upper (2.1)', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border-blue-200' };
+      if (cgpaNum >= 2.00) return { title: 'Second Class Lower (2.2)', color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border-purple-200' };
+      if (cgpaNum >= 1.50) return { title: 'Third Class Honours', color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200' };
+      if (cgpaNum >= 1.00) return { title: 'Pass Degree', color: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border-orange-200' };
+      return { title: 'Academic Probation / Fail', color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-200' };
+    }
+  };
+
+  const currentHonours = getDegreeClass(Number(cumulativeCGPA), scale);
+
+  useEffect(() => {
+    if (!user || !isDataLoaded) return;
+    const saveTimer = setTimeout(async () => {
+      setIsSaving(true);
+      await saveUserCGPA(user.uid, semesters, scale);
+      
+      const totalCourses = semesters.reduce((acc, s) => acc + (s.courses?.length || 0), 0);
+      const totalUnits = semesters.reduce((acc, s) => acc + (s.courses || []).reduce((cAcc: number, c: Course) => cAcc + (c.units || 0), 0), 0);
+      if (totalCourses > 0 && cumulativeCGPA) {
+        await saveGlobalCgpaRecord({
+          userId: user.uid,
+          userEmail: user.email || '',
+          userName: user.displayName || 'Scholar',
+          institution: user.institution || 'Nigerian University',
+          course: user.course || 'Degree Program',
+          cgpa: Number(cumulativeCGPA),
+          scale,
+          honoursTitle: currentHonours.title,
+          semestersCount: semesters.length,
+          totalCourses,
+          totalUnits
+        });
+
+        try {
+          if (user?.uid) {
+            await incrementCgpaUsage(user.uid);
+          }
+        } catch {}
+
+        trackCGPAInteraction({
+          action: 'calculate',
+          scale,
+          cgpa: cumulativeCGPA,
+          honours_class: currentHonours.title,
+          semesters_count: semesters.length,
+          courses_count: totalCourses,
+          total_units: totalUnits,
+          institution: user.institution || 'Nigerian University',
+          user_id: user.uid,
+          user_email: user.email || '',
+          user_name: user.displayName || 'Scholar'
+        });
+      }
+      setIsSaving(false);
+    }, 2000); // Debounce saving
+    return () => clearTimeout(saveTimer);
+  }, [semesters, scale, user, isDataLoaded, cumulativeCGPA, currentHonours.title]);
+
+  // Handle scale change
+  const handleScaleChange = (newScale: 5 | 4) => {
+    setScale(newScale);
+    trackCGPAInteraction({
+      action: 'scale_switch',
+      scale: newScale,
+      cgpa: cumulativeCGPA,
+      honours_class: currentHonours.title,
+      semesters_count: semesters.length,
+      user_id: user?.uid,
+      user_email: user?.email,
+      user_name: user?.displayName
+    });
+  };
+
+  // Add semester
+  const addSemester = () => {
+    if (!newSemName.trim()) return;
+    const newSem: Semester = {
+      id: `sem-${Date.now()}`,
+      name: newSemName.trim(),
+      courses: []
+    };
+    setSemesters([...semesters, newSem]);
+    setActiveSemesterId(newSem.id);
+    setNewSemName('');
+
+    trackCGPAInteraction({
+      action: 'semester_add',
+      semester_name: newSemName.trim(),
+      semesters_count: semesters.length + 1,
+      scale,
+      cgpa: cumulativeCGPA,
+      user_id: user?.uid,
+      user_email: user?.email
+    });
+  };
+
+  // Delete semester
+  const deleteSemester = (semId: string) => {
+    if (semesters.length <= 1) return;
+    const deletedSem = semesters.find(s => s.id === semId);
+    const updated = semesters.filter(s => s.id !== semId);
+    setSemesters(updated);
+    setActiveSemesterId(updated[0].id);
+
+    trackCGPAInteraction({
+      action: 'semester_delete',
+      semester_name: deletedSem?.name,
+      semesters_count: updated.length,
+      scale,
+      cgpa: cumulativeCGPA,
+      user_id: user?.uid,
+      user_email: user?.email
+    });
+  };
+
+  // Add course to active semester
+  const addCourse = (semId: string) => {
+    const updated = semesters.map(sem => {
+      if (sem.id === semId) {
+        return {
+          ...sem,
+          courses: [
+            ...sem.courses,
+            { id: `c-${Date.now()}`, code: `CSC${100 + sem.courses.length + 1}`, units: 3, grade: 'A' as const }
+          ]
+        };
+      }
+      return sem;
+    });
+    setSemesters(updated);
+
+    trackCGPAInteraction({
+      action: 'course_add',
+      semester_name: semesters.find(s => s.id === semId)?.name,
+      scale,
+      cgpa: cumulativeCGPA,
+      user_id: user?.uid,
+      user_email: user?.email
+    });
+  };
+
+  // Update course
+  const updateCourse = (semId: string, courseId: string, field: keyof Course, value: any) => {
+    const updated = semesters.map(sem => {
+      if (sem.id === semId) {
+        const courses = sem.courses.map(c => {
+          if (c.id === courseId) {
+            return { ...c, [field]: value };
+          }
+          return c;
+        });
+        return { ...sem, courses };
+      }
+      return sem;
+    });
+    setSemesters(updated);
+
+    if (field === 'grade' || field === 'units') {
+      trackCGPAInteraction({
+        action: 'course_update',
+        course_grade: field === 'grade' ? value : undefined,
+        scale,
+        cgpa: cumulativeCGPA,
+        user_id: user?.uid,
+        user_email: user?.email
+      });
+    }
+  };
+
+  // Delete course
+  const deleteCourse = (semId: string, courseId: string) => {
+    const deletedCourse = semesters.find(s => s.id === semId)?.courses.find(c => c.id === courseId);
+    const updated = semesters.map(sem => {
+      if (sem.id === semId) {
+        return { ...sem, courses: sem.courses.filter(c => c.id !== courseId) };
+      }
+      return sem;
+    });
+    setSemesters(updated);
+
+    trackCGPAInteraction({
+      action: 'course_delete',
+      course_code: deletedCourse?.code,
+      scale,
+      cgpa: cumulativeCGPA,
+      user_id: user?.uid,
+      user_email: user?.email
+    });
+  };
+
+  // Trigger AI Trajectory Analysis
+  const handleRunAiAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      const summaryText = semesters.map(s => {
+        const stats = calculateSemesterStats(s.courses);
+        const courseList = s.courses.map(c => `${c.code}(Units:${c.units}, Grade:${c.grade})`).join(', ');
+        return `${s.name}: GPA ${stats.gpa}, Units: ${stats.totalUnits}. Courses: [${courseList}]`;
+      }).join('\n');
+
+      const advice = await analyzeCGPA(
+        Number(cumulativeCGPA),
+        summaryText,
+        user?.role || 'University Student',
+        user?.institution || 'Nigerian University',
+        user?.course || 'Tertiary Programme'
+      );
+      setAiAnalysis(advice);
+      
+      trackCalculatorUsed({
+        calculator_type: 'cgpa_analysis',
+        aggregate_score: cumulativeCGPA,
+        university: user?.institution || 'unspecified'
+      });
+
+      trackCGPAInteraction({
+        action: 'ai_advisor_run',
+        cgpa: cumulativeCGPA,
+        scale,
+        honours_class: currentHonours.title,
+        semesters_count: semesters.length,
+        institution: user?.institution || 'Nigerian University',
+        user_id: user?.uid,
+        user_email: user?.email,
+        user_name: user?.displayName
+      });
+
+      logUserActivity({
+        userId: user?.uid || 'guest-cgpa',
+        type: 'calculation',
+        title: 'CGPA Calculation & Analysis',
+        description: `Calculated CGPA: ${cumulativeCGPA} (${currentHonours.title}) on Scale ${scale} by ${user?.displayName || user?.email || 'Scholar'} (${user?.email || 'guest'}) for ${user?.institution || 'Tertiary Institution'}`
+      });
+    } catch (e: any) {
+      setAiAnalysis("Keep up consistent effort in core departmental courses and aim for straight A's in high-unit practicals.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // If user is not logged in, show Auth Guard requiring Sign Up / Login
+  if (!user) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center bg-slate-950 px-4 py-12 relative overflow-hidden">
+        {/* Background glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-xl w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl backdrop-blur-xl relative z-10 text-center space-y-6">
+          <div className="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-purple-500/20 to-indigo-500/10 border border-purple-500/30 text-purple-400 shadow-lg mb-2">
+            <GraduationCap size={40} />
+          </div>
+
+          <div>
+            <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 font-extrabold text-[11px] uppercase tracking-widest rounded-full">
+              Account Required
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-white mt-3 tracking-tight">
+              Sign Up to Access CGPA & Transcript Studio
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed max-w-md mx-auto">
+              Create a free account or log in to track semester GPAs, forecast your target degree honours class, and get AI academic performance recommendations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
+            <div className="p-3.5 bg-slate-950/60 rounded-2xl border border-slate-800/80 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                <Calculator size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">5.0 & 4.0 Scale Calculations</div>
+                <div className="text-[11px] text-slate-400">Compliant with Nigerian university grading</div>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-950/60 rounded-2xl border border-slate-800/80 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                <TrendingUp size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">Honours Trajectory Forecast</div>
+                <div className="text-[11px] text-slate-400">Calculate required GPAs for First Class / 2:1</div>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-950/60 rounded-2xl border border-slate-800/80 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                <Brain size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">AI Academic Advisor</div>
+                <div className="text-[11px] text-slate-400">Personalized study advice based on course performance</div>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-950/60 rounded-2xl border border-slate-800/80 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                <Award size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">Semester Academic Record</div>
+                <div className="text-[11px] text-slate-400">Multi-semester unit tracking & backup</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => {
+                if (onSignUpRequest) onSignUpRequest();
+                else if (onLoginRequest) onLoginRequest();
+                else navigate('/login');
+              }}
+              className="flex-1 py-3.5 px-6 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-purple-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Create Free Account</span>
+              <ArrowRight size={16} />
+            </button>
+            
+            <button
+              onClick={() => {
+                if (onLoginRequest) onLoginRequest();
+                else navigate('/login');
+              }}
+              className="py-3.5 px-6 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs uppercase tracking-wider rounded-2xl border border-slate-700 transition-all cursor-pointer"
+            >
+              Log In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const activeSemester = semesters.find(s => s.id === activeSemesterId) || semesters[0];
+  const activeStats = calculateSemesterStats(activeSemester?.courses || []);
+
+  return (
+    <section id="cgpa" className="py-16 bg-gray-50 dark:bg-gray-950 transition-colors relative overflow-hidden min-h-[85vh]">
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent"></div>
+      <div className="absolute top-12 left-1/2 -translate-x-1/2 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div className="container mx-auto px-4 md:px-8 relative z-10">
+        <div className="max-w-6xl mx-auto space-y-8">
+          
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-gray-200 dark:border-gray-800">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-purple-100 dark:border-purple-800">
+                <Calculator size={12} />
+                Live Academic Studio Active
+              </div>
+
+              <h2 className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
+                CGPA <span className="text-purple-600 dark:text-purple-400">Analytics</span> Studio
+              </h2>
+              <p className="text-gray-500 dark:text-slate-300 font-medium text-base max-w-xl">
+                Official Multi-Semester Academic Grade Diagnostic & Degree Honours Forecaster for Nigerian Tertiary Institutions.
+              </p>
+            </div>
+
+            {/* Scale toggle */}
+            <div className="flex bg-white dark:bg-gray-900 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm shrink-0">
+              <button 
+                onClick={() => handleScaleChange(5)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${scale === 5 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+              >
+                NUC 5.0 Scale
+              </button>
+              <button 
+                onClick={() => handleScaleChange(4)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${scale === 4 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+              >
+                NUC 4.0 Scale
+              </button>
+            </div>
+          </div>
+
+          {/* MAIN DASHBOARD STATS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Cumulative CGPA Card */}
+            <div className="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white rounded-[32px] p-8 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-black uppercase tracking-widest text-purple-200">Cumulative CGPA</span>
+                  <GraduationCap size={24} className="text-purple-300" />
+                </div>
+                <div className="text-6xl font-black tracking-tight mb-2">
+                  {cumulativeCGPA} <span className="text-2xl font-bold opacity-60">/ {scale}.0</span>
+                </div>
+                <div className="text-xs text-purple-200 font-medium">
+                  Across {semesters.length} recorded semester(s) • {totalCumulativeUnits} total units
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-white/10 relative z-10 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-200">Honours Standing</span>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white`}>
+                  {currentHonours.title}
+                </span>
+              </div>
+            </div>
+
+            {/* Active Semester Stats Card */}
+            <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-400">Active Semester ({activeSemester?.name})</span>
+                  <Clock size={20} className="text-purple-600" />
+                </div>
+                <div className="text-5xl font-black text-gray-900 dark:text-white tracking-tight mb-2">
+                  {activeStats.gpa} <span className="text-xl font-bold text-gray-400">/ {scale}.0</span>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-slate-300 font-medium">
+                  {activeStats.totalUnits} Units Registered • {activeSemester?.courses.length || 0} Courses
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Semester Points</span>
+                <span className="text-sm font-black text-purple-600 dark:text-purple-400">
+                  {activeStats.totalPoints} Grade Points
+                </span>
+              </div>
+            </div>
+
+            {/* AI Advisor Card */}
+            <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-widest text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                    <Sparkles size={14} /> AI Trajectory Advisor
+                  </span>
+                  <Brain size={20} className="text-purple-600" />
+                </div>
+                
+                {aiAnalysis ? (
+                  <div className="max-h-56 overflow-y-auto pr-2 space-y-2 text-xs text-gray-700 dark:text-slate-300 font-medium leading-relaxed custom-scrollbar">
+                    <div className="markdown-body space-y-1.5">
+                      <Markdown>{aiAnalysis}</Markdown>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-600 dark:text-slate-300 font-medium leading-relaxed">
+                    Click below to run an instant AI diagnostic on your course grades and get actionable study strategies.
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={handleRunAiAnalysis}
+                disabled={isAnalyzing}
+                className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xs font-bold uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isAnalyzing ? <RefreshCw className="animate-spin" size={16} /> : <Brain size={16} />}
+                <span>{isAnalyzing ? 'Analyzing Grades...' : aiAnalysis ? 'Re-run AI Academic Diagnostic' : 'Run AI Academic Diagnostic'}</span>
+              </button>
+            </div>
+
+          </div>
+
+
+          {/* CGPA TREND GRAPH */}
+          {semesters.length > 1 && (
+            <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-6">
+                <div className="space-y-1">
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-400">Academic Progression</span>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Semester by Semester GPA Trend</h3>
+                </div>
+                <TrendingUp size={20} className="text-purple-600" />
+              </div>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={semesters.map((sem, index) => {
+                    const stats = calculateSemesterStats(sem.courses);
+                    // Also calculate cumulative up to this point
+                    const pastSemesters = semesters.slice(0, index + 1);
+                    const cumPoints = pastSemesters.reduce((acc, s) => acc + calculateSemesterStats(s.courses).totalPoints, 0);
+                    const cumUnits = pastSemesters.reduce((acc, s) => acc + calculateSemesterStats(s.courses).totalUnits, 0);
+                    const currentCGPA = cumUnits > 0 ? (cumPoints / cumUnits).toFixed(2) : '0.00';
+                    return {
+                      name: sem.name.replace('Semester', 'Sem'),
+                      GPA: typeof stats.gpa === 'number' ? stats.gpa : parseFloat(String(stats.gpa)),
+                      CGPA: parseFloat(currentCGPA)
+                    };
+                  })}>
+                    <defs>
+                      <linearGradient id="colorGPA" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#9333ea" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#9333ea" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorCGPA" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      domain={[0, scale]} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }}
+                      dx={-10}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', color: '#f8fafc', fontSize: '12px', fontWeight: 'bold' }}
+                      itemStyle={{ fontWeight: 'bold' }}
+                    />
+                    <Area type="monotone" dataKey="GPA" stroke="#9333ea" strokeWidth={3} fillOpacity={1} fill="url(#colorGPA)" />
+                    <Area type="monotone" dataKey="CGPA" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorCGPA)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-600"></div>
+                  <span className="text-xs font-bold text-gray-500">Semester GPA</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-sky-500"></div>
+                  <span className="text-xs font-bold text-gray-500">Cumulative CGPA</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SEMESTER TAB SELECTOR & MANAGER */}
+          <div className="bg-white dark:bg-gray-900 rounded-[32px] p-6 border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0">
+                {semesters.map(sem => (
+                  <button
+                    key={sem.id}
+                    onClick={() => setActiveSemesterId(sem.id)}
+                    className={`px-5 py-3 rounded-2xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeSemesterId === sem.id ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750'}`}
+                  >
+                    <span>{sem.name}</span>
+                    <span className="px-2 py-0.5 bg-black/20 rounded-full text-[10px]">
+                      {calculateSemesterStats(sem.courses).gpa}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Add semester input */}
+              <div className="flex gap-2 shrink-0">
+                <input
+                  type="text"
+                  placeholder="e.g. Year 2 - 1st Sem"
+                  value={newSemName}
+                  onChange={(e) => setNewSemName(e.target.value)}
+                  className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white placeholder-gray-400 font-medium outline-none focus:border-purple-500"
+                />
+                <button
+                  onClick={addSemester}
+                  className="px-4 py-2.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md hover:bg-gray-800"
+                >
+                  <Plus size={16} /> Add Sem
+                </button>
+              </div>
+            </div>
+
+            {/* ACTIVE SEMESTER COURSE TABLE */}
+            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                    {activeSemester?.name} Courses
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-slate-300 font-medium">
+                    Enter your course code, credit units (1-6), and letter grade for each course.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {semesters.length > 1 && (
+                    <button
+                      onClick={() => deleteSemester(activeSemester.id)}
+                      className="px-3 py-2 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold hover:bg-red-100 transition-all flex items-center gap-1"
+                    >
+                      <Trash2 size={14} /> Delete Semester
+                    </button>
+                  )}
+                  <button
+                    onClick={() => addCourse(activeSemester.id)}
+                    className="px-4 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl text-xs font-bold hover:bg-purple-100 transition-all flex items-center gap-1.5 border border-purple-200 dark:border-purple-800"
+                  >
+                    <Plus size={16} /> Add Course
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 uppercase text-[10px] font-black tracking-wider">
+                      <th className="pb-3 pl-2">Course Code</th>
+                      <th className="pb-3">Credit Units</th>
+                      <th className="pb-3">Letter Grade</th>
+                      <th className="pb-3">Grade Point</th>
+                      <th className="pb-3 text-right pr-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-850 font-medium text-gray-800 dark:text-gray-200">
+                    {activeSemester?.courses.map((course) => {
+                      const gp = getGradePoint(course.grade, scale);
+                      return (
+                        <tr key={course.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-850/50 transition-colors">
+                          <td className="py-3 pl-2">
+                            <input
+                              type="text"
+                              value={course.code}
+                              onChange={(e) => updateCourse(activeSemester.id, course.id, 'code', e.target.value.toUpperCase())}
+                              className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold text-xs uppercase w-32 outline-none focus:border-purple-500 text-gray-900 dark:text-white"
+                              placeholder="e.g. GNS101"
+                            />
+                          </td>
+                          <td className="py-3">
+                            <select
+                              value={course.units}
+                              onChange={(e) => updateCourse(activeSemester.id, course.id, 'units', Number(e.target.value))}
+                              className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold text-xs outline-none focus:border-purple-500 text-gray-900 dark:text-white"
+                            >
+                              {[1, 2, 3, 4, 5, 6].map(u => (
+                                <option key={u} value={u}>{u} Unit{u > 1 ? 's' : ''}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-3">
+                            <select
+                              value={course.grade}
+                              onChange={(e) => updateCourse(activeSemester.id, course.id, 'grade', e.target.value)}
+                              className="px-4 py-1.5 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl font-black text-xs text-purple-600 dark:text-purple-400 outline-none"
+                            >
+                              <option value="A">A ( {scale === 5 ? '5' : '4'} pts )</option>
+                              <option value="B">B ( {scale === 5 ? '4' : '3'} pts )</option>
+                              <option value="C">C ( {scale === 5 ? '3' : '2'} pts )</option>
+                              <option value="D">D ( {scale === 5 ? '2' : '1'} pts )</option>
+                              {scale === 5 && <option value="E">E ( 1 pt )</option>}
+                              <option value="F">F ( 0 pts )</option>
+                            </select>
+                          </td>
+                          <td className="py-3 font-bold text-gray-600 dark:text-gray-400">
+                            {gp * Number(course.units)} pts ({gp}.0)
+                          </td>
+                          <td className="py-3 text-right pr-2">
+                            <button
+                              onClick={() => deleteCourse(activeSemester.id, course.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {activeSemester?.courses.length === 0 && (
+                <div className="py-12 text-center text-gray-400 text-xs">
+                  No courses added to this semester yet. Click "Add Course" above to begin.
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* OFFICIAL NUC GRADING SCALE REFERENCE TABLES */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  <GraduationCap className="text-purple-600" size={22} />
+                  Official NUC Grading Scale & Class Reference
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-slate-300 font-medium mt-0.5">
+                  Standard grade point equivalents for Nigerian university transcripts ({scale === 5 ? '5.0 System' : '4.0 System'}).
+                </p>
+              </div>
+
+              <span className="px-3.5 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded-full text-[10px] font-black uppercase tracking-wider">
+                NUC Standardized
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Grade Point Table */}
+              <div className="bg-white dark:bg-gray-900 rounded-[28px] p-6 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <BookOpen size={14} className="text-purple-600" /> Letter Grade & Score Percentages
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 uppercase text-[9px] font-black tracking-wider">
+                        <th className="pb-3">Mark (%)</th>
+                        <th className="pb-3">Grade</th>
+                        <th className="pb-3">Point Value ({scale}.0 Scale)</th>
+                        <th className="pb-3">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-850 font-bold text-gray-700 dark:text-gray-200">
+                      <tr>
+                        <td className="py-3 text-purple-600 dark:text-purple-400">70% - 100%</td>
+                        <td className="py-3 font-black text-sm text-green-600 dark:text-green-400">A</td>
+                        <td className="py-3">{scale === 5 ? 5.0 : 4.0}</td>
+                        <td className="py-3 font-semibold text-gray-500">Excellent</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-purple-600 dark:text-purple-400">60% - 69%</td>
+                        <td className="py-3 font-black text-sm text-blue-600 dark:text-blue-400">B</td>
+                        <td className="py-3">{scale === 5 ? 4.0 : 3.0}</td>
+                        <td className="py-3 font-semibold text-gray-500">Very Good</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-purple-600 dark:text-purple-400">50% - 59%</td>
+                        <td className="py-3 font-black text-sm text-amber-600 dark:text-amber-400">C</td>
+                        <td className="py-3">{scale === 5 ? 3.0 : 2.0}</td>
+                        <td className="py-3 font-semibold text-gray-500">Good</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-purple-600 dark:text-purple-400">45% - 49%</td>
+                        <td className="py-3 font-black text-sm text-orange-600 dark:text-orange-400">D</td>
+                        <td className="py-3">{scale === 5 ? 2.0 : 1.0}</td>
+                        <td className="py-3 font-semibold text-gray-500">Fair / Pass</td>
+                      </tr>
+                      {scale === 5 && (
+                        <tr>
+                          <td className="py-3 text-purple-600 dark:text-purple-400">40% - 44%</td>
+                          <td className="py-3 font-black text-sm text-gray-600 dark:text-slate-300">E</td>
+                          <td className="py-3">1.0</td>
+                          <td className="py-3 font-semibold text-gray-500">Pass</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td className="py-3 text-purple-600 dark:text-purple-400">0% - {scale === 5 ? '39%' : '44%'}</td>
+                        <td className="py-3 font-black text-sm text-red-600 dark:text-red-400">F</td>
+                        <td className="py-3">0.0</td>
+                        <td className="py-3 font-semibold text-gray-500">Fail</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Class of Degree Table */}
+              <div className="bg-white dark:bg-gray-900 rounded-[28px] p-6 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <Award size={14} className="text-amber-500" /> Honours Class Distinction Bounds
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 uppercase text-[9px] font-black tracking-wider">
+                        <th className="pb-3">Class Distinction</th>
+                        <th className="pb-3">CGPA Range ({scale}.0)</th>
+                        <th className="pb-3">Academic Standing</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-850 font-bold text-gray-700 dark:text-gray-200">
+                      <tr>
+                        <td className="py-3 text-amber-600 dark:text-amber-400 font-black">First Class Honours</td>
+                        <td className="py-3">{scale === 5 ? '4.50 – 5.00' : '3.50 – 4.00'}</td>
+                        <td className="py-3 font-semibold text-green-600 dark:text-green-400">Distinction</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-blue-600 dark:text-blue-400 font-black">Second Class Upper (2.1)</td>
+                        <td className="py-3">{scale === 5 ? '3.50 – 4.49' : '3.00 – 3.49'}</td>
+                        <td className="py-3 font-semibold text-blue-600 dark:text-blue-400">Very Good</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-purple-600 dark:text-purple-400 font-black">Second Class Lower (2.2)</td>
+                        <td className="py-3">{scale === 5 ? '2.40 – 3.49' : '2.00 – 2.99'}</td>
+                        <td className="py-3 font-semibold text-purple-600 dark:text-purple-400">Good</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-gray-600 dark:text-slate-300 font-black">Third Class Honours</td>
+                        <td className="py-3">{scale === 5 ? '1.50 – 2.39' : '1.50 – 1.99'}</td>
+                        <td className="py-3 font-semibold text-gray-500">Satisfactory</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 text-gray-500 font-black">Pass Degree</td>
+                        <td className="py-3">{scale === 5 ? '1.00 – 1.49' : '1.00 – 1.49'}</td>
+                        <td className="py-3 font-semibold text-gray-400">Minimum Pass</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default CGPACalculator;
