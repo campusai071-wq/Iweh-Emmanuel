@@ -130,7 +130,7 @@ const ScholarPackModal: React.FC<ScholarPackModalProps> = ({
   };
 
   const fwConfig = {
-    public_key: MASTER_CONFIG.FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-X',
+    public_key: MASTER_CONFIG.FLUTTERWAVE_PUBLIC_KEY || '',
     tx_ref: `campusai-${Date.now()}`,
     amount: paymentConfig.amount,
     currency: 'NGN',

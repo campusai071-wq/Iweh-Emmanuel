@@ -2562,46 +2562,31 @@ export const getPredictionAccuracyStats = async () => {
 
     predictions.forEach(p => {
       const v = (p.verdict || '').toLowerCase();
-      const prob = p.predictedProbability;
-      const isDisqualified = 
-        prob === 0 || 
-        v.includes('disqualif') || 
-        v.includes('invalid') || 
-        v.includes('ineligible') || 
-        v.includes('mismatch') || 
-        v.includes('deficit') ||
-        p.departmentalCutoff === 'N/A';
+      const prob = typeof p.predictedProbability === 'number' ? p.predictedProbability : 50;
+      const isDisqualified = prob === 0 && v.includes('disqualif');
 
       if (isDisqualified) {
         verdictDistribution.disqualified++;
       } else if (
+        prob >= 65 ||
         v.includes('admit') || 
         v.includes('high') || 
         v.includes('safe') || 
         v.includes('strong') || 
-        v.includes('excellent') || 
-        (typeof prob === 'number' && prob >= 70)
+        v.includes('excellent')
       ) {
         verdictDistribution.high++;
       } else if (
+        prob >= 40 ||
         v.includes('border') || 
         v.includes('compet') || 
         v.includes('medium') || 
         v.includes('moderate') || 
-        v.includes('fair') || 
-        (typeof prob === 'number' && prob >= 40 && prob < 70)
+        v.includes('fair')
       ) {
         verdictDistribution.borderline++;
-      } else if (
-        v.includes('risk') || 
-        v.includes('low') || 
-        v.includes('unlikely') || 
-        v.includes('not') || 
-        (typeof prob === 'number' && prob > 0 && prob < 40)
-      ) {
-        verdictDistribution.low++;
       } else {
-        verdictDistribution.borderline++;
+        verdictDistribution.low++;
       }
     });
 
@@ -3040,4 +3025,118 @@ export const getUserCGPA = async (userId: string): Promise<UserCGPA | null> => {
     console.error('Failed to get user CGPA:', err);
     return null;
   }
+};
+
+export const generateArticleCoverGraphics = async (
+  title: string,
+  category: string = 'Admission News',
+  excerpt: string = '',
+  date: string = ''
+): Promise<string> => {
+  if (typeof document === 'undefined') {
+    const encodedTitle = encodeURIComponent(title.slice(0, 80));
+    return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="%230f172a"/><text x="60" y="200" fill="%2338bdf8" font-size="28" font-family="sans-serif" font-weight="bold">${category}</text><text x="60" y="300" fill="%23ffffff" font-size="44" font-family="sans-serif" font-weight="bold">${encodedTitle}</text></svg>`;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 630;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    const encodedTitle = encodeURIComponent(title.slice(0, 80));
+    return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="%230f172a"/><text x="60" y="200" fill="%2338bdf8" font-size="28" font-family="sans-serif" font-weight="bold">${category}</text><text x="60" y="300" fill="%23ffffff" font-size="44" font-family="sans-serif" font-weight="bold">${encodedTitle}</text></svg>`;
+  }
+
+  // Draw modern dark gradient background
+  const grad = ctx.createLinearGradient(0, 0, 1200, 630);
+  grad.addColorStop(0, '#0a0f1d');
+  grad.addColorStop(0.5, '#0f172a');
+  grad.addColorStop(1, '#020617');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  // Decorative ambient glow
+  const glow = ctx.createRadialGradient(1000, 150, 50, 1000, 150, 500);
+  glow.addColorStop(0, 'rgba(6, 182, 212, 0.25)');
+  glow.addColorStop(1, 'rgba(6, 182, 212, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  const glow2 = ctx.createRadialGradient(200, 500, 50, 200, 500, 450);
+  glow2.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
+  glow2.addColorStop(1, 'rgba(16, 185, 129, 0)');
+  ctx.fillStyle = glow2;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  // Border outline
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(20, 20, 1160, 590);
+
+  // Brand header
+  ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('CAMPUSAI.NG', 70, 90);
+
+  // Category pill
+  ctx.fillStyle = 'rgba(6, 182, 212, 0.2)';
+  const catWidth = ctx.measureText(category.toUpperCase()).width + 36;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(70, 130, catWidth, 38, 19);
+  } else {
+    ctx.rect(70, 130, catWidth, 38);
+  }
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#22d3ee';
+  ctx.fillText(category.toUpperCase(), 88, 154);
+
+  // Title wrapping
+  ctx.font = 'bold 46px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  const words = title.split(' ');
+  let line = '';
+  let y = 240;
+  const maxWidth = 1060;
+  const lineHeight = 60;
+  let linesDrawn = 0;
+
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line + words[i] + ' ';
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && i > 0) {
+      ctx.fillText(line, 70, y);
+      line = words[i] + ' ';
+      y += lineHeight;
+      linesDrawn++;
+      if (linesDrawn >= 3) {
+        line = line + '...';
+        break;
+      }
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, 70, y);
+
+  // Excerpt if room
+  if (excerpt && linesDrawn < 3) {
+    ctx.font = '500 22px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    const cleanExcerpt = excerpt.slice(0, 130) + (excerpt.length > 130 ? '...' : '');
+    ctx.fillText(cleanExcerpt, 70, y + 60);
+  }
+
+  // Footer date & watermark
+  ctx.font = '600 18px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#64748b';
+  const displayDate = date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  ctx.fillText(`Official Higher Education Bulletin • ${displayDate}`, 70, 560);
+
+  return canvas.toDataURL('image/jpeg', 0.92);
 };

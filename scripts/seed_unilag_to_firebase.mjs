@@ -21,14 +21,8 @@ let firebaseConfig;
 if (fs.existsSync(firebaseConfigPath)) {
   firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
 } else {
-  // Fallback credentials
-  firebaseConfig = {
-    projectId: "planning-with-ai-e00fb",
-    appId: "1:839188766880:web:a482b160d10b721479e9c5",
-    apiKey: "AIzaSyA29YiPHU-RtbN72D57o6l26FUVkULoE0g",
-    authDomain: "planning-with-ai-e00fb.firebaseapp.com",
-    firestoreDatabaseId: "(default)"
-  };
+  console.error("Error: firebase-applet-config.json not found!");
+  process.exit(1);
 }
 
 console.log(`\n🚀 Initializing Firebase for Project: ${firebaseConfig.projectId}...`);

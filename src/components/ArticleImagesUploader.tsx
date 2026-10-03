@@ -5,6 +5,10 @@ import { compressImage } from '../services/utils';
 interface ArticleImagesUploaderProps {
   images?: string[];
   featuredImage?: string;
+  articleTitle?: string;
+  articleCategory?: string;
+  articleExcerpt?: string;
+  articleDate?: string;
   onChangeImages: (images: string[], featuredImage: string) => void;
   onInsertMarkdown?: (imageUrl: string) => void;
 }
@@ -12,11 +16,43 @@ interface ArticleImagesUploaderProps {
 export const ArticleImagesUploader: React.FC<ArticleImagesUploaderProps> = ({
   images = [],
   featuredImage = '',
+  articleTitle = '',
+  articleCategory = '',
+  articleExcerpt = '',
+  articleDate = '',
   onChangeImages,
   onInsertMarkdown
 }) => {
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isGeneratingGraphics, setIsGeneratingGraphics] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+
+  const handleGenerateGraphics = async () => {
+    if (!articleTitle || !articleTitle.trim()) {
+      alert("Please enter an article headline/title first so we can generate graphics for your story!");
+      return;
+    }
+
+    setIsGeneratingGraphics(true);
+    try {
+      const { generateArticleCoverGraphics } = await import('../services/dbService');
+      const imageUrl = await generateArticleCoverGraphics(
+        articleTitle.trim(),
+        articleCategory || 'Admission News',
+        articleExcerpt || '',
+        articleDate || ''
+      );
+      if (imageUrl) {
+        const updated = images.includes(imageUrl) ? images : [imageUrl, ...images];
+        onChangeImages(updated, imageUrl);
+      }
+    } catch (err) {
+      console.error("Failed to generate graphics:", err);
+      alert("Failed to generate cover graphics.");
+    } finally {
+      setIsGeneratingGraphics(false);
+    }
+  };
 
   const handleFilesAdded = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -81,18 +117,39 @@ export const ArticleImagesUploader: React.FC<ArticleImagesUploaderProps> = ({
           <p className="text-[10px] font-semibold text-gray-400">Upload multiple photos for article body & photo gallery</p>
         </div>
 
-        <label className="cursor-pointer px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20">
-          {isCompressing ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          <span>{isCompressing ? "Processing Pictures..." : "Upload Multiple Pictures"}</span>
-          <input 
-            type="file" 
-            accept="image/*" 
-            multiple 
-            className="hidden" 
-            disabled={isCompressing}
-            onChange={e => handleFilesAdded(e.target.files)} 
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleGenerateGraphics}
+            disabled={isGeneratingGraphics}
+            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:opacity-90 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md shadow-purple-500/20"
+          >
+            {isGeneratingGraphics ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                <span>Designing Cover Graphics...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={14} className="text-yellow-300" />
+                <span>Generate Cover Graphics</span>
+              </>
+            )}
+          </button>
+
+          <label className="cursor-pointer px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20">
+            {isCompressing ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            <span>{isCompressing ? "Processing Pictures..." : "Upload Photos"}</span>
+            <input 
+              type="file" 
+              accept="image/*" 
+              multiple 
+              className="hidden" 
+              disabled={isCompressing || isGeneratingGraphics}
+              onChange={e => handleFilesAdded(e.target.files)} 
+            />
+          </label>
+        </div>
       </div>
 
       {/* URL Input fallback */}

@@ -44,6 +44,28 @@ const COMMON_OLEVEL_SUBJECTS = [
 
 const OLEVEL_GRADES: OLevelGrade[] = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
 
+const resizeProfilePhoto = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(reader.error || new Error('Unable to read profile photo'));
+  reader.onload = () => {
+    const image = new Image();
+    image.onerror = () => reject(new Error('Unable to decode profile photo'));
+    image.onload = () => {
+      const maxSize = 256;
+      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) return reject(new Error('Unable to process profile photo'));
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.72));
+    };
+    image.src = reader.result as string;
+  };
+  reader.readAsDataURL(file);
+});
+
 const DEFAULT_OLEVEL: Array<{ subject: string; grade: string }> = [
   { subject: 'English Language', grade: 'B2' },
   { subject: 'Mathematics', grade: 'A1' },
@@ -149,15 +171,16 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result as string;
+    try {
+      const base64 = await resizeProfilePhoto(file);
       setIsSaving(true);
       const updated = await updateUserProfile({ photoURL: base64 });
       setProfile(updated);
       setIsSaving(false);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to save profile photo:', error);
+      setIsSaving(false);
+    }
   };
 
   const handleAddOlevelSubject = () => {

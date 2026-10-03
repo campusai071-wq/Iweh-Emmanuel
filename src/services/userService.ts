@@ -13,6 +13,23 @@ export const FREE_USER_LIMIT = 1;
 
 export const ADMIN_EMAILS = ['eiweh123@gmail.com'];
 
+const persistLocalProfile = (profile: UserProfile): void => {
+  const safeProfile = { ...profile } as UserProfile;
+  if (typeof safeProfile.photoURL === 'string' && safeProfile.photoURL.startsWith('data:')) {
+    delete safeProfile.photoURL;
+  }
+  try {
+    localStorage.setItem(QUOTA_KEY, stringify(safeProfile));
+  } catch {
+    try {
+      localStorage.removeItem('campusai_l2_cache');
+      localStorage.setItem(QUOTA_KEY, stringify(safeProfile));
+    } catch (error) {
+      console.warn('Unable to persist local profile; continuing with cloud profile:', error);
+    }
+  }
+};
+
 export const isUserAdmin = (profileOrEmail?: any): boolean => {
   if (!profileOrEmail) return false;
   const email = typeof profileOrEmail === 'string' ? profileOrEmail : profileOrEmail.email;
@@ -80,7 +97,7 @@ export const checkAndIncrementChats = async (uid: string) => {
     daily_chat_last_reset: today
   };
   
-  localStorage.setItem(QUOTA_KEY, stringify(updated));
+  persistLocalProfile(updated);
   
   if (db && isRealUser(uid)) {
     try {
@@ -131,7 +148,7 @@ export const getLocalProfile = (): UserProfile => {
     lifetime_calculations: 0,
     is_premium: false
   };
-  localStorage.setItem(QUOTA_KEY, stringify(newProfile));
+  persistLocalProfile(newProfile);
   return newProfile;
 };
 
@@ -200,7 +217,7 @@ export const syncAndValidateProfile = async (
         return (cloud as UserProfile) || local;
       }
       const finalProfile = validation.data as UserProfile;
-      localStorage.setItem(QUOTA_KEY, stringify(finalProfile));
+      persistLocalProfile(finalProfile);
 
       // Asynchronously record last_active and ensure missing display names are patched
       updateDoc(userRef, { 
@@ -233,7 +250,7 @@ export const syncAndValidateProfile = async (
         newProfile.premium_activated_at = new Date().toISOString();
       }
       await setDoc(userRef, newProfile).catch(e => handleFirestoreError(e, OperationType.CREATE, `users/${uid}`));
-      localStorage.setItem(QUOTA_KEY, stringify(newProfile));
+      persistLocalProfile(newProfile);
 
       // Invalidate total user count cache and dispatch registration event
       cachedTotalUserCount = null;
@@ -269,7 +286,7 @@ export const deductScholarCredit = async (uid: string) => {
       const profile = getLocalProfile();
       if (profile.uid === uid) {
         const updated = { ...profile, ...updates };
-        localStorage.setItem(QUOTA_KEY, stringify(updated));
+        persistLocalProfile(updated);
         window.dispatchEvent(new CustomEvent('campusai_quota_updated', { detail: updated }));
       }
     }
@@ -313,7 +330,7 @@ export const initializeUserProfile = async (
   if (user && isRealUser(user.uid)) {
     if (role) {
       const local = getLocalProfile();
-      localStorage.setItem(QUOTA_KEY, stringify({ ...local, role }));
+      persistLocalProfile({ ...local, role });
     }
     return await syncAndValidateProfile(user.uid, user, { ...meta, role });
   }
@@ -364,7 +381,7 @@ export const subscribeToUserProfile = (uid: string, callback: (profile: UserProf
         premium_activated_at: cloudData.premium_activated_at || local.premium_activated_at,
       };
       
-      localStorage.setItem(QUOTA_KEY, stringify(merged));
+      persistLocalProfile(merged);
       callback(merged);
     }
   }).catch((error) => {
@@ -385,7 +402,7 @@ export const updateUserProfile = async (data: Partial<UserProfile>, uid?: string
   }
   
   const finalProfile = validation.data as UserProfile;
-  localStorage.setItem(QUOTA_KEY, stringify(finalProfile));
+  persistLocalProfile(finalProfile);
   
   if (db && isRealUser(targetUid)) {
     try { 
@@ -438,7 +455,7 @@ export const checkAndIncrementCalculations = async (uid: string) => {
       ...profile,
       lifetime_calculations: nextCalculations
     };
-    localStorage.setItem(QUOTA_KEY, stringify(updated));
+    persistLocalProfile(updated);
     if (db && isRealUser(uid)) {
       try {
         await updateDoc(doc(db, "users", uid), {
@@ -469,7 +486,7 @@ export const checkAndIncrementCalculations = async (uid: string) => {
     lifetime_calculations: nextCalculations 
   };
   
-  localStorage.setItem(QUOTA_KEY, stringify(updated));
+  persistLocalProfile(updated);
   
   if (db && isRealUser(uid)) {
     try {
@@ -515,7 +532,7 @@ export const incrementCalculations = async (uid: string): Promise<{ current: num
       ...profile,
       lifetime_calculations: nextCalculations
     };
-    localStorage.setItem(QUOTA_KEY, stringify(updated));
+    persistLocalProfile(updated);
     if (db && isRealUser(uid)) {
       try {
         await updateDoc(doc(db, "users", uid), {
@@ -542,7 +559,7 @@ export const incrementCalculations = async (uid: string): Promise<{ current: num
     lifetime_calculations: nextCalculations 
   };
   
-  localStorage.setItem(QUOTA_KEY, stringify(updated));
+  persistLocalProfile(updated);
   
   if (db && isRealUser(uid)) {
     try {
@@ -567,7 +584,7 @@ export const incrementCbtUsage = async (uid: string): Promise<number> => {
     ...profile,
     lifetime_cbt_tests: nextCbt
   };
-  localStorage.setItem(QUOTA_KEY, stringify(updated));
+  persistLocalProfile(updated);
   if (db && isRealUser(uid)) {
     try {
       await updateDoc(doc(db, "users", uid), {
@@ -589,7 +606,7 @@ export const incrementCgpaUsage = async (uid: string): Promise<number> => {
     ...profile,
     lifetime_cgpa_calculations: nextCgpa
   };
-  localStorage.setItem(QUOTA_KEY, stringify(updated));
+  persistLocalProfile(updated);
   if (db && isRealUser(uid)) {
     try {
       await updateDoc(doc(db, "users", uid), {
@@ -883,4 +900,3 @@ export const calculateProfileCompletion = (profile?: UserProfile | null): Profil
     missingItems: missing
   };
 };
-

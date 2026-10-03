@@ -19,7 +19,7 @@ if (typeof window !== 'undefined') {
 
 export const MASTER_CONFIG = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || "", 
-  FLUTTERWAVE_PUBLIC_KEY: process.env.VITE_FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-f26c5e3b665384b21c780ad1f752954e-X",
+  FLUTTERWAVE_PUBLIC_KEY: process.env.VITE_FLUTTERWAVE_PUBLIC_KEY || "",
   FIREBASE: localFirebaseConfig || firebaseConfig
 };
 export const hasLocalFirebase = !!localFirebaseConfig;

@@ -19,6 +19,65 @@ interface SEOProps {
   section?: string;
 }
 
+function sanitizeWellFormedText(str: string): string {
+  if (!str) return '';
+  let clean = str
+    .replace(/<[^>]*>/g, '')
+    .replace(/#+\s+/g, '')
+    .replace(/\*+/g, '')
+    .replace(/_+/g, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (typeof (clean as any).toWellFormed === 'function') {
+    clean = (clean as any).toWellFormed();
+  } else {
+    clean = clean.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+  }
+  return clean;
+}
+
+function safeTruncateUnicode(str: string, maxLen: number): string {
+  const clean = sanitizeWellFormedText(str);
+  if (clean.length <= maxLen) return clean;
+
+  const codePoints = Array.from(clean);
+  if (codePoints.length <= maxLen) return clean;
+
+  const truncated = codePoints.slice(0, maxLen - 3).join('');
+  let wellFormed = typeof (truncated as any).toWellFormed === 'function'
+    ? (truncated as any).toWellFormed()
+    : truncated.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+
+  const lastSpace = wellFormed.lastIndexOf(' ');
+  if (lastSpace > Math.floor(maxLen * 0.4)) {
+    wellFormed = wellFormed.substring(0, lastSpace);
+  }
+
+  return wellFormed.trim() + '...';
+}
+
+function sanitizeJsonLdObject(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    return safeTruncateUnicode(obj, 15000);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeJsonLdObject);
+  }
+  if (typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const [key, val] of Object.entries(obj)) {
+      sanitized[key] = sanitizeJsonLdObject(val);
+    }
+    return sanitized;
+  }
+  return obj;
+}
+
 const SEO: React.FC<SEOProps> = ({
   title,
   description,
@@ -41,7 +100,7 @@ const SEO: React.FC<SEOProps> = ({
   const cleanPath = rawPath === '/' ? '' : rawPath.split('?')[0].replace(/\/+$/, "");
   
   // SEO standards: Title < 70, Desc ideally between 130 and 160 characters
-  let baseDesc = (description || defaultDescription).trim();
+  let baseDesc = sanitizeWellFormedText(description || defaultDescription);
   if (baseDesc.length < 130) {
     if (baseDesc.endsWith('.')) {
       baseDesc = `${baseDesc} Practice CBT past questions, calculate aggregate scores, and check 2026 cutoffs on CampusAI.`;
@@ -49,25 +108,19 @@ const SEO: React.FC<SEOProps> = ({
       baseDesc = `${baseDesc}. Practice CBT past questions, calculate aggregate scores, and check 2026 cutoffs on CampusAI.`;
     }
   }
-  let cleanDescription = baseDesc;
-  if (cleanDescription.length > 160) {
-    const truncated = cleanDescription.substring(0, 157);
-    const lastSpace = truncated.lastIndexOf(' ');
-    cleanDescription = (lastSpace > 50 ? truncated.substring(0, lastSpace) : truncated) + '...';
-  }
+  let cleanDescription = safeTruncateUnicode(baseDesc, 160);
 
   let formattedTitle = "CampusAI.ng | Nigeria's Academic & Admission Intelligence Platform";
   if (title) {
-    if (title.toLowerCase().includes('campusai')) {
-      formattedTitle = title;
+    const cleanRawTitle = sanitizeWellFormedText(title);
+    if (cleanRawTitle.toLowerCase().includes('campusai')) {
+      formattedTitle = cleanRawTitle;
     } else {
-      formattedTitle = `${title} | CampusAI`;
+      formattedTitle = `${cleanRawTitle} | CampusAI`;
     }
   }
 
-  const cleanTitle = formattedTitle.length > 70
-    ? formattedTitle.substring(0, 67) + '...'
-    : formattedTitle;
+  const cleanTitle = safeTruncateUnicode(formattedTitle, 70);
   const fullUrl = canonical ? `${siteDomain}${canonical}` : `${siteDomain}${cleanPath || '/'}`;
 
   const newsSlug = (canonical || cleanPath).includes('/news/') ? (canonical || cleanPath).split('/news/')[1] : "";
@@ -230,11 +283,11 @@ const SEO: React.FC<SEOProps> = ({
 
       {/* Structured Data */}
       <script type="application/ld+json">
-        {stringify(structuredData)}
+        {stringify(sanitizeJsonLdObject(structuredData))}
       </script>
       {breadcrumbData && (
         <script type="application/ld+json">
-          {stringify(breadcrumbData)}
+          {stringify(sanitizeJsonLdObject(breadcrumbData))}
         </script>
       )}
     </Helmet>

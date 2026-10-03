@@ -3895,6 +3895,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         <ArticleImagesUploader
                           images={newPost.images || []}
                           featuredImage={newPost.image || ''}
+                          articleTitle={newPost.title || ''}
+                          articleCategory={newPost.category || 'National'}
+                          articleExcerpt={newPost.excerpt || ''}
+                          articleDate={newPost.date || getNigerianDateStr()}
                           onChangeImages={(imgs, feat) => setNewPost({ ...newPost, images: imgs, image: feat })}
                           onInsertMarkdown={(imgUrl) => {
                             setNewPost({
@@ -5810,6 +5814,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 <ArticleImagesUploader
                   images={editingNews.images || (editingNews.image ? [editingNews.image] : [])}
                   featuredImage={editingNews.image || ''}
+                  articleTitle={editingNews.title || ''}
+                  articleCategory={editingNews.category || 'Admission Update'}
+                  articleExcerpt={editingNews.excerpt || ''}
+                  articleDate={editingNews.date || ''}
                   onChangeImages={(imgs, feat) => setEditingNews({ ...editingNews, images: imgs, image: feat })}
                   onInsertMarkdown={(imgUrl) => {
                     setEditingNews({

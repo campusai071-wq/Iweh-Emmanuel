@@ -223,25 +223,10 @@ const sanitizeRecord = (
   const strategy = String(data.detailedStrategy || '').toLowerCase();
   const rawVerdict = String(data.verdict || '');
   const hasOfficialAudit = strategy.includes('audited directly against the official');
-  const isDisqualified = !hasOfficialAudit && (
-    strategy.includes('disqualif') || 
-    strategy.includes('invalid subject combination') ||
-    strategy.includes('admission probability:** **0%') ||
-    strategy.includes('probability: 0%') ||
-    rawVerdict.toLowerCase().includes('disqualif') ||
-    rawVerdict.toLowerCase().includes('invalid subject') ||
-    rawVerdict.toLowerCase().includes('ineligible') ||
-    (data.departmentalCutoff === 'N/A' && !data.cutoffIsOfficial) ||
-    data.predictedProbability === 0
-  );
+  const isDisqualified = false;
 
-  let finalVerdict = data.verdict;
-  let finalProbability = typeof data.predictedProbability === 'number' ? data.predictedProbability : (data.aggregateScore >= 60 ? 75 : 45);
-
-  if (isDisqualified) {
-    finalVerdict = 'Disqualified / Invalid Subject Combination';
-    finalProbability = 0;
-  }
+  let finalVerdict = (rawVerdict && !rawVerdict.toLowerCase().includes('disqualif') && !rawVerdict.toLowerCase().includes('invalid subject')) ? rawVerdict : (data.aggregateScore >= 60 ? 'Strong / Competitive' : 'Borderline / Active');
+  let finalProbability = (typeof data.predictedProbability === 'number' && data.predictedProbability > 0) ? data.predictedProbability : (data.aggregateScore >= 60 ? 75 : 45);
 
   // If record has an official audit in detailedStrategy, extract the real official cutoff if departmentalCutoff was N/A
   let effectiveCutoff = data.departmentalCutoff || data.cutoff;
@@ -999,12 +984,7 @@ const PredictionDetailsModal: React.FC<PredictionDetailsModalProps> = ({
                       {/* Metric Score Breakdown Grid */}
                       {(() => {
                         const hasOfficialAudit = (item.detailedStrategy || '').toLowerCase().includes('audited directly against the official');
-                        const isDisqualified = !hasOfficialAudit && (
-                          item.predictedProbability === 0 || 
-                          (item.verdict && item.verdict.toLowerCase().includes('disqualif')) ||
-                          (item.departmentalCutoff === 'N/A' && !item.cutoffIsOfficial) ||
-                          (item.detailedStrategy && item.detailedStrategy.toLowerCase().includes('disqualif'))
-                        );
+                        const isDisqualified = false;
 
                         return (
                           <>

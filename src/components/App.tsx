@@ -1611,6 +1611,9 @@ const AppContent: React.FC = () => {
             />
           } />
 
+          <Route path="/fuoye-releases-2026-2027-admission-merit-points" element={<Navigate to="/news/fuoye-releases-2026-2027-admission-merit-points" replace />} />
+          <Route path="/fuoye-releases-2026-2027-admission-merit-points/" element={<Navigate to="/news/fuoye-releases-2026-2027-admission-merit-points" replace />} />
+
           <Route path="/jamb-caps" element={<JambCapsLiveTrackerPage />} />
           <Route path="/caps" element={<JambCapsLiveTrackerPage />} />
           <Route path="/caps-portal" element={<JambCapsLiveTrackerPage />} />

@@ -100,17 +100,71 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Pr
   ]);
 }
 
+function sanitizeWellFormedText(str: string): string {
+  if (!str) return '';
+  let clean = str
+    .replace(/<[^>]*>/g, '')
+    .replace(/#+\s+/g, '')
+    .replace(/\*+/g, '')
+    .replace(/_+/g, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (typeof (clean as any).toWellFormed === 'function') {
+    clean = (clean as any).toWellFormed();
+  } else {
+    clean = clean.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+  }
+  return clean;
+}
+
+function safeTruncateUnicode(str: string, maxLen: number): string {
+  const clean = sanitizeWellFormedText(str);
+  if (clean.length <= maxLen) return clean;
+
+  const codePoints = Array.from(clean);
+  if (codePoints.length <= maxLen) return clean;
+
+  const truncated = codePoints.slice(0, maxLen - 3).join('');
+  let wellFormed = typeof (truncated as any).toWellFormed === 'function'
+    ? (truncated as any).toWellFormed()
+    : truncated.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+
+  const lastSpace = wellFormed.lastIndexOf(' ');
+  if (lastSpace > Math.floor(maxLen * 0.4)) {
+    wellFormed = wellFormed.substring(0, lastSpace);
+  }
+
+  return wellFormed.trim() + '...';
+}
+
+function sanitizeJsonLdObject(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    return safeTruncateUnicode(obj, 15000);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeJsonLdObject);
+  }
+  if (typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const [key, val] of Object.entries(obj)) {
+      sanitized[key] = sanitizeJsonLdObject(val);
+    }
+    return sanitized;
+  }
+  return obj;
+}
+
 function formatSeoDescription(text: string, fallbackTopic?: string): string {
-  let clean = (text || "").replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  let clean = sanitizeWellFormedText(text);
   if (!clean || clean.length < 90) {
     clean = `${clean ? clean + '. ' : ''}Get verified ${fallbackTopic || 'admission'} updates, cutoff marks, screening alerts, and preparation intelligence on CampusAI Nigeria.`;
   }
-  if (clean.length > 158) {
-    const cut = clean.substring(0, 155);
-    const lastSpace = cut.lastIndexOf(' ');
-    clean = (lastSpace > 70 ? cut.substring(0, lastSpace) : cut) + '...';
-  }
-  return clean;
+  return safeTruncateUnicode(clean, 158);
 }
 
 export async function injectSEO(html: string, reqPath: string, adminDb: any, dbInstance?: any): Promise<string> {
@@ -869,7 +923,8 @@ async function generateInjectedSEO(html: string, reqPath: string, adminDb: any, 
 
   // Inject JSON-LD
   if (jsonLd) {
-    const jsonLdString = `<script data-rh="true" type="application/ld+json">\n${JSON.stringify(jsonLd, null, 2)}\n</script>`;
+    const cleanLd = sanitizeJsonLdObject(jsonLd);
+    const jsonLdString = `<script data-rh="true" type="application/ld+json">\n${JSON.stringify(cleanLd, null, 2)}\n</script>`;
     if (html.includes('type="application/ld+json"')) {
       html = html.replace(/<script[^>]*type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/i, jsonLdString);
     } else {

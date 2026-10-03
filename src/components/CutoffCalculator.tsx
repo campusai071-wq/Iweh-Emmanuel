@@ -1388,7 +1388,7 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
   const [reverseSolveFor, setReverseSolveFor] = useState<'jamb' | 'postUtme'>('jamb');
 
   const handleCalculateDirectAggregate = async (parsedAgg: number) => {
-    setAggregateScore(parsedAgg);
+    setDirectAggregateInput(String(parsedAgg));
     setIsAnalysisLoading(true);
     setAiResult(null);
     setShowResults(true);
@@ -1397,8 +1397,11 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
 
     await new Promise(res => setTimeout(res, 300));
 
+    const uniName = targetUni || uniSearch || 'University';
+    const courseName = targetCourse || courseSearch || 'Course';
+
     const predictionId = `pred_dir_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const officialCutoffMatch = getOfficialInstitutionCutoff(targetUni?.name || activeUni.name, targetCourse || activeCourse, stateOfOrigin);
+    const officialCutoffMatch = getOfficialInstitutionCutoff(uniName, courseName, stateOfOrigin);
     
     let result: any = null;
     let enrichedResult: any = null;
@@ -1421,7 +1424,7 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
         verdict,
         probability: baseProb,
         scoreDiff: diff,
-        detailedStrategy: `### Direct Aggregate Audit (${parsedAgg}%)\n- **Target University:** ${targetUni?.name || activeUni.name}\n- **Target Course:** ${targetCourse || activeCourse}\n- **Verified Verdict:** ${verdict}\n- **Score Margin:** ${diff >= 0 ? `+${diff}% Surplus` : `${diff}% Deficit`} vs official cutoff of ${officialCutoff}%.`,
+        detailedStrategy: `### Direct Aggregate Audit (${parsedAgg}%)\n- **Target University:** ${uniName?.name || uniName}\n- **Target Course:** ${courseName}\n- **Verified Verdict:** ${verdict}\n- **Score Margin:** ${diff >= 0 ? `+${diff}% Surplus` : `${diff}% Deficit`} vs official cutoff of ${officialCutoff}%.`,
         reliability: 'High',
         isOffered: true,
         predictionId
@@ -1443,8 +1446,8 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
       userEmail: user?.email || '',
       userName: user?.displayName || (user ? 'Registered Scholar' : 'Guest Scholar (Direct Aggregate)'),
       isGuest: !user,
-      university: targetUni?.name || activeUni.name,
-      course: targetCourse || activeCourse,
+      university: uniName?.name || uniName,
+      course: courseName,
       aggregateScore: parsedAgg,
       jambScore: 0,
       postUtmeScore: 0,
@@ -2294,6 +2297,10 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
   }, [subjects, targetUni]);
 
   const aggregateScore = useMemo(() => {
+    if (calcMode === 'direct') {
+      const parsed = parseFloat(directAggregateInput);
+      return isNaN(parsed) ? 0 : parsed;
+    }
     if (!targetUni) return 0;
     if (isDirectEntry) {
       const dePts = parseFloat(dePoints) || 12;

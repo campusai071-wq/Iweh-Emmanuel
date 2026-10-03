@@ -4,6 +4,7 @@ import { X, Save, Database, Layout, CheckCircle2, Moon, Sun, Lock, LogOut, Plus,
 import { motion, AnimatePresence } from 'framer-motion';
 import { SocialLink, AdminState, BillboardAd, NewsItem, UniversityCategory } from '../types';
 import { getPublishedNews, publishNewsUpdate, deleteNewsUpdate, getTrafficStats } from '../services/dbService';
+import { ArticleImagesUploader } from './ArticleImagesUploader';
 import { getTotalUserCount } from '../services/userService';
 import { formatNewsPostTime } from '../utils/dateUtils';
 
@@ -473,6 +474,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                               className="w-full bg-white dark:bg-gray-950 p-4 rounded-xl h-24 outline-none border border-transparent focus:border-blue-500 text-gray-900 dark:text-white"
                               value={newPost.excerpt || ''}
                               onChange={e => setNewPost({...newPost, excerpt: e.target.value})}
+                            />
+                            <ArticleImagesUploader
+                              images={newPost.images || (newPost.image ? [newPost.image] : [])}
+                              featuredImage={newPost.image || ''}
+                              articleTitle={newPost.title || ''}
+                              articleCategory={newPost.category || 'Federal'}
+                              articleExcerpt={newPost.excerpt || ''}
+                              articleDate={newPost.date || ''}
+                              onChangeImages={(imgs, feat) => setNewPost({ ...newPost, images: imgs, image: feat })}
                             />
                             <button 
                               onClick={handlePublishPost}

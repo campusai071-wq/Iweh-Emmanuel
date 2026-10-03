@@ -27,8 +27,9 @@ export interface OfficialCutoffResult {
   explanation: string;
 }
 
-function normalize(str: string): string {
-  return (str || '')
+function normalize(str: any): string {
+  const s = typeof str === 'string' ? str : (str?.name || (str ? String(str) : ''));
+  return (s || '')
     .toLowerCase()
     .replace(/\band\b/g, '')
     .replace(/&/g, '')
@@ -39,14 +40,16 @@ function normalize(str: string): string {
  * Universal lookup for all officially published university departmental cutoffs in Nigeria.
  */
 export function getOfficialInstitutionCutoff(
-  university: string,
-  course: string,
+  university: any,
+  course: any,
   stateOfOrigin?: string
 ): OfficialCutoffResult | null {
-  if (!university || !course) return null;
+  const rawUni = typeof university === 'string' ? university : (university?.name || (university ? String(university) : ''));
+  const rawCourse = typeof course === 'string' ? course : (course?.name || (course ? String(course) : ''));
+  if (!rawUni || !rawCourse) return null;
 
-  const nUni = normalize(university);
-  const nCourse = normalize(course);
+  const nUni = normalize(rawUni);
+  const nCourse = normalize(rawCourse);
   const stateKey = (stateOfOrigin || '').toLowerCase().trim();
 
   // 1. UNIVERSITY OF LAGOS (UNILAG)

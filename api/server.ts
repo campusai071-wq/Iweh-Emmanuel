@@ -20,7 +20,8 @@ import { initializeFirestore, collection, getDocs, query, orderBy, limit, getCou
 import { initializeApp as initAdminApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore as getAdminFirestore, Timestamp as AdminTimestamp, FieldValue } from "firebase-admin/firestore";
 import { injectSEO as seoInject, clearSeoCache } from "./seo.js";
-import { handleOgImageRequest } from "./ogImage.js";
+import { handleOgImageRequest, generateOgImageSvg } from "./ogImage.js";
+import { Resvg } from "@resvg/resvg-js";
 import { handleArticleImageRequest, clearArticleImageCache } from "./articleImage.js";
 import universityData from "../src/data/universities.js";
 import { MOCK_NEWS } from "../src/constants.js";
@@ -2438,9 +2439,9 @@ async function clientNewsWrite(action: string, id?: string, data?: any) {
     return { success: true, id: finalId };
   }
 
-  if (action === "update") {
+  if (action === "update" || action === "enhance") {
     if (!id || !data) {
-      throw new Error("ID and updates are required");
+      throw new Error("ID and updates/data are required");
     }
     try {
       const docRef = doc(dbInstance, "news", id);
@@ -2448,7 +2449,7 @@ async function clientNewsWrite(action: string, id?: string, data?: any) {
         ...data,
         updatedAt: new Date()
       }, { merge: true });
-      console.log(`[Client Fallback] Successfully updated news doc: ${id}`);
+      console.log(`[Client Fallback] Successfully updated/enhanced news doc: ${id}`);
       return { success: true };
     } catch (err) {
       const q = query(collection(dbInstance, "news"), where("slug", "==", id), limit(1));
@@ -2458,7 +2459,7 @@ async function clientNewsWrite(action: string, id?: string, data?: any) {
           ...data,
           updatedAt: new Date()
         }, { merge: true });
-        console.log(`[Client Fallback] Successfully updated news doc by slug: ${id}`);
+        console.log(`[Client Fallback] Successfully updated/enhanced news doc by slug: ${id}`);
         return { success: true };
       }
       throw err;
@@ -2476,8 +2477,8 @@ app.post("/api/admin/news/action", requireAdminToken as any, async (req: any, re
   try {
     const { action, id, news, updates } = req.body;
 
-    if (!adminDb) {
-      console.log("[Admin API] adminDb not initialized, using client SDK fallback directly.");
+    if (!adminDb && action !== "enhance") {
+      console.log(`[Admin API] adminDb not initialized, using client SDK fallback directly for action: ${action}`);
       try {
         const resData = await clientNewsWrite(action, id, news || updates);
         return res.json(resData);
@@ -4381,6 +4382,137 @@ Return the output strictly as a JSON object with this exact shape:
   }
 
   return res.json({ success: true, post: successPost, sources: urlsUsed, provider: aiResult.provider });
+});
+
+// AI & HD Graphics Cover Image Generator for News & Articles
+app.post("/api/admin/generate-article-graphics", requireAdminToken as any, async (req: any, res: any) => {
+  try {
+    const { title, category, excerpt, date } = req.body;
+    const cleanTitle = (title || "CAMPUSAI Official Announcement").trim();
+    const cleanCategory = (category || "Admission News").trim();
+    const cleanExcerpt = (excerpt || "").trim();
+    const cleanDate = (date || new Date().toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })).trim();
+
+    console.log(`[Graphics Generator] Generating cover graphics for: "${cleanTitle}" (${cleanCategory}, Date: ${cleanDate})`);
+
+    // 1. Primary Strategy: OpenAI DALL-E Image Generation API
+    // Provider keys must be configured through deployment environment variables.
+    const openAiKey = process.env.OPENAI_API_KEY || "";
+
+    if (openAiKey) {
+      try {
+        console.log("[Graphics Generator] Requesting image from OpenAI DALL-E 3 API...");
+        const dallePrompt = `An editorial, high-definition news article cover image for a story titled: "${cleanTitle}". Category: ${cleanCategory}. Date: ${cleanDate}. Summary: ${cleanExcerpt.slice(0, 100)}. Style: Modern Nigerian university campus aesthetic, vibrant graphic design, clean lighting, bold artistic composition.`;
+
+        const openAiRes = await axios.post("https://api.openai.com/v1/images/generations", {
+          model: "dall-e-3",
+          prompt: dallePrompt,
+          n: 1,
+          size: "1024x1024",
+          response_format: "b64_json"
+        }, {
+          headers: {
+            "Authorization": `Bearer ${openAiKey}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 35000
+        });
+
+        if (openAiRes.data?.data?.[0]) {
+          const item = openAiRes.data.data[0];
+          if (item.b64_json) {
+            const imageUrl = `data:image/png;base64,${item.b64_json}`;
+            console.log("[Graphics Generator] Successfully generated DALL-E 3 cover image!");
+            return res.json({ success: true, imageUrl, source: 'openai_dalle3' });
+          } else if (item.url) {
+            console.log("[Graphics Generator] Successfully generated DALL-E 3 cover image URL!");
+            return res.json({ success: true, imageUrl: item.url, source: 'openai_dalle3_url' });
+          }
+        }
+      } catch (openAiErr: any) {
+        console.warn("[Graphics Generator] OpenAI DALL-E 3 failed:", openAiErr.response?.data || openAiErr.message);
+        // Fallback to DALL-E 2
+        try {
+          const fallbackRes = await axios.post("https://api.openai.com/v1/images/generations", {
+            model: "dall-e-2",
+            prompt: `A vibrant editorial news graphic cover for: "${cleanTitle}". Category: ${cleanCategory}.`,
+            n: 1,
+            size: "512x512",
+            response_format: "b64_json"
+          }, {
+            headers: {
+              "Authorization": `Bearer ${openAiKey}`,
+              "Content-Type": "application/json"
+            },
+            timeout: 20000
+          });
+
+          if (fallbackRes.data?.data?.[0]?.b64_json) {
+            const imageUrl = `data:image/png;base64,${fallbackRes.data.data[0].b64_json}`;
+            console.log("[Graphics Generator] Successfully generated DALL-E 2 cover image!");
+            return res.json({ success: true, imageUrl, source: 'openai_dalle2' });
+          }
+        } catch (e: any) {
+          console.warn("[Graphics Generator] OpenAI DALL-E 2 fallback failed:", e.response?.data || e.message);
+        }
+      }
+    }
+
+    // 2. Secondary Strategy: Gemini Image Model (@google/genai)
+    try {
+      const geminiKeys = getGeminiKeys();
+      if (geminiKeys.length > 0) {
+        const apiKey = geminiKeys[0];
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+        });
+
+        const imagePrompt = `A professional, high-definition 16:9 news article cover illustration for: "${cleanTitle}". Category: ${cleanCategory}. Date: ${cleanDate}. Topic: ${cleanExcerpt.slice(0, 120)}. Vibrant Nigerian university campus aesthetic, editorial graphics design, studio lighting, clean visual composition.`;
+
+        const aiRes = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: { parts: [{ text: imagePrompt }] },
+          config: {
+            imageConfig: { aspectRatio: "16:9" }
+          }
+        });
+
+        if (aiRes?.candidates?.[0]?.content?.parts) {
+          for (const part of aiRes.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+              const mime = part.inlineData.mimeType || 'image/png';
+              const imageUrl = `data:${mime};base64,${part.inlineData.data}`;
+              return res.json({ success: true, imageUrl, source: 'gemini_imagen' });
+            }
+          }
+        }
+      }
+    } catch (aiErr: any) {
+      console.warn("[Graphics Generator] Gemini image model fallback:", aiErr.message || aiErr);
+    }
+
+    // 2. High-Definition Dynamic Resvg PNG Canvas Graphics Fallback
+    const svg = generateOgImageSvg(cleanTitle, cleanCategory, `${cleanDate} • CAMPUSAI OFFICIAL REPORT`);
+    
+    let pngBuffer: Buffer;
+    try {
+      const resvg = new Resvg(svg, {
+        fitTo: { mode: 'width', value: 1200 }
+      });
+      pngBuffer = resvg.render().asPng();
+      const pngBase64 = pngBuffer.toString('base64');
+      const imageUrl = `data:image/png;base64,${pngBase64}`;
+      return res.json({ success: true, imageUrl, source: 'resvg_hd' });
+    } catch (resvgErr) {
+      const svgBase64 = Buffer.from(svg).toString('base64');
+      const imageUrl = `data:image/svg+xml;base64,${svgBase64}`;
+      return res.json({ success: true, imageUrl, source: 'svg_direct' });
+    }
+  } catch (err: any) {
+    console.error("[Graphics Generator] Error generating article graphics:", err);
+    return res.status(500).json({ success: false, error: err.message || "Failed to generate graphics." });
+  }
 });
 
 // --- JAMB CAPS Live Telemetry Extractor & Sync ---

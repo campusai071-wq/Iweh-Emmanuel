@@ -2147,42 +2147,8 @@ export const getCourseCutoffInfo = async (
       )
     );
 
-    // ─── 1. MANDATORY SUBJECT COMBINATION VALIDATION HARD FAILURE GATE ───────────
+    // ─── 1. SUBJECT ADVISORY CHECK (NON-BLOCKING) ───────────────────────────
     const subjectCheck = validateMandatorySubjects(course, cleanJambSubjects);
-    if (!subjectCheck.valid) {
-      console.log(`Disqualified due to subject mismatch for ${course} at ${university}. Skipping external API call.`);
-      return {
-        departmentalCutoff: "N/A",
-        institutionalCutoff: "160",
-        cutoff: "N/A",
-        cutoffValue: "N/A",
-        cutoffType: "estimated_benchmark",
-        cutoffYear: new Date().getFullYear(),
-        cutoffSource: "Algorithmic Ruleset",
-        cutoffIsOfficial: false,
-        cutoffConfidence: "high",
-        mathBreakdown: `Aggregate score of ${score}% calculated for ${university} (${course}).`,
-        scoreBreakdown: [
-          { factor: "Aggregate", impact: `${score}%` },
-          { factor: "Subject Match", impact: "Invalid" }
-        ],
-        subjectCombinationValidation: subjectCheck,
-        reliability: "high",
-        confidenceReasoning: "Algorithmic validation determined mandatory JAMB subject mismatch.",
-        evidencePanel: [],
-        recommendation: `CRITICAL JAMB SUBJECT MISMATCH: Your written JAMB subjects (${cleanJambSubjects.join(', ')}) do not meet the compulsory requirements for ${course} at ${university}. ${subjectCheck.reason}`,
-        detailedStrategy: `### 1. Verdict Summary\n- **Verdict Status:** **Disqualified / Invalid Subject Combination**\n- **Admission Probability:** **0%**\n\n### 2. The Reality Check\nYour written JAMB subject combination of **${cleanJambSubjects.join(', ')}** does **NOT** meet the compulsory subject requirements for **${course}** at **${university}**. ${subjectCheck.reason}\n\n### 3. Actionable Next Steps\n*   **Immediate JAMB Change of Course:** Log into your JAMB CAPS portal and change your course choice to a department that strictly accepts your written JAMB subjects (${cleanJambSubjects.join(', ')}).\n*   **Consult JAMB Brochure:** Verify subject requirements for alternative departments before submitting your change of course.`,
-        probability: 0,
-        verdict: "Disqualified / Invalid Subject Combination",
-        alternatives: sanitizeAlternativeCourses([], course, cleanJambSubjects, university, stateOfOrigin),
-        strengths: ["Calculated aggregate score recorded"],
-        riskFactors: ["Invalid JAMB subject combination for chosen department"],
-        isOffered: true,
-        fresherBudget: "Estimated Total: ₦350,000 (Consult official portal for exact fee schedule)",
-        sourcesCited: ['jamb.gov.ng'],
-        predictionConfidenceInterval: "0%"
-      };
-    }
 
     const cacheKey = `${university}_${course}_${score}_${oLevels}_${cleanJambSubjects.join('_')}_${role || 'Std'}_${isAwaitingResult}_${isPostUtmePending}_${stateOfOrigin || 'None'}_${resolvedIsELDS}_${resolvedIsCatchment}_${quotaDiscount}_v12`;
     const cachedResult = await getCachedCourseCutoffInfo(university, cacheKey);
