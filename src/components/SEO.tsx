@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { stringify } from '../services/utils';
 import { getStoredLinkPreviews } from '../services/linkPreviewService';
 import { trackPageView } from '../services/analytics';
+import { cleanPlainText, truncateCleanPlainText, sanitizeUnicodeForJsonLd } from '../utils/seoSanitizer';
 
 interface SEOProps {
   title?: string;
@@ -17,65 +18,6 @@ interface SEOProps {
   publishedTime?: string;
   modifiedTime?: string;
   section?: string;
-}
-
-function sanitizeWellFormedText(str: string): string {
-  if (!str) return '';
-  let clean = str
-    .replace(/<[^>]*>/g, '')
-    .replace(/#+\s+/g, '')
-    .replace(/\*+/g, '')
-    .replace(/_+/g, '')
-    .replace(/`{1,3}[^`]*`{1,3}/g, '')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-    .replace(/\\n/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (typeof (clean as any).toWellFormed === 'function') {
-    clean = (clean as any).toWellFormed();
-  } else {
-    clean = clean.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
-  }
-  return clean;
-}
-
-function safeTruncateUnicode(str: string, maxLen: number): string {
-  const clean = sanitizeWellFormedText(str);
-  if (clean.length <= maxLen) return clean;
-
-  const codePoints = Array.from(clean);
-  if (codePoints.length <= maxLen) return clean;
-
-  const truncated = codePoints.slice(0, maxLen - 3).join('');
-  let wellFormed = typeof (truncated as any).toWellFormed === 'function'
-    ? (truncated as any).toWellFormed()
-    : truncated.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
-
-  const lastSpace = wellFormed.lastIndexOf(' ');
-  if (lastSpace > Math.floor(maxLen * 0.4)) {
-    wellFormed = wellFormed.substring(0, lastSpace);
-  }
-
-  return wellFormed.trim() + '...';
-}
-
-function sanitizeJsonLdObject(obj: any): any {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj === 'string') {
-    return safeTruncateUnicode(obj, 15000);
-  }
-  if (Array.isArray(obj)) {
-    return obj.map(sanitizeJsonLdObject);
-  }
-  if (typeof obj === 'object') {
-    const sanitized: any = {};
-    for (const [key, val] of Object.entries(obj)) {
-      sanitized[key] = sanitizeJsonLdObject(val);
-    }
-    return sanitized;
-  }
-  return obj;
 }
 
 const SEO: React.FC<SEOProps> = ({
@@ -99,8 +41,8 @@ const SEO: React.FC<SEOProps> = ({
   const rawPath = typeof window !== 'undefined' ? window.location.pathname : "";
   const cleanPath = rawPath === '/' ? '' : rawPath.split('?')[0].replace(/\/+$/, "");
   
-  // SEO standards: Title < 70, Desc ideally between 130 and 160 characters
-  let baseDesc = sanitizeWellFormedText(description || defaultDescription);
+  // SEO standards: Clean markdown, ensure valid Unicode code points, 130-160 characters
+  let baseDesc = cleanPlainText(description || defaultDescription);
   if (baseDesc.length < 130) {
     if (baseDesc.endsWith('.')) {
       baseDesc = `${baseDesc} Practice CBT past questions, calculate aggregate scores, and check 2026 cutoffs on CampusAI.`;
@@ -108,11 +50,11 @@ const SEO: React.FC<SEOProps> = ({
       baseDesc = `${baseDesc}. Practice CBT past questions, calculate aggregate scores, and check 2026 cutoffs on CampusAI.`;
     }
   }
-  let cleanDescription = safeTruncateUnicode(baseDesc, 160);
+  const cleanDescription = truncateCleanPlainText(baseDesc, 160);
 
   let formattedTitle = "CampusAI.ng | Nigeria's Academic & Admission Intelligence Platform";
   if (title) {
-    const cleanRawTitle = sanitizeWellFormedText(title);
+    const cleanRawTitle = cleanPlainText(title);
     if (cleanRawTitle.toLowerCase().includes('campusai')) {
       formattedTitle = cleanRawTitle;
     } else {
@@ -120,7 +62,7 @@ const SEO: React.FC<SEOProps> = ({
     }
   }
 
-  const cleanTitle = safeTruncateUnicode(formattedTitle, 70);
+  const cleanTitle = truncateCleanPlainText(formattedTitle, 70);
   const fullUrl = canonical ? `${siteDomain}${canonical}` : `${siteDomain}${cleanPath || '/'}`;
 
   const newsSlug = (canonical || cleanPath).includes('/news/') ? (canonical || cleanPath).split('/news/')[1] : "";
@@ -283,11 +225,11 @@ const SEO: React.FC<SEOProps> = ({
 
       {/* Structured Data */}
       <script type="application/ld+json">
-        {stringify(sanitizeJsonLdObject(structuredData))}
+        {stringify(sanitizeUnicodeForJsonLd(structuredData))}
       </script>
       {breadcrumbData && (
         <script type="application/ld+json">
-          {stringify(sanitizeJsonLdObject(breadcrumbData))}
+          {stringify(sanitizeUnicodeForJsonLd(breadcrumbData))}
         </script>
       )}
     </Helmet>

@@ -45,9 +45,11 @@ export default function AdmissionCountdown() {
   if (!timeLeft.days && !timeLeft.hours && !timeLeft.minutes) return null;
 
   return (
-    <div className="bg-blue-900 text-white py-2 px-4 flex items-center justify-center gap-2 text-xs font-bold text-center">
-      <Clock size={16} />
-      <span>{timeLeft.name} Deadline in: {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s</span>
+    <div className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 text-white min-h-[32px] sm:min-h-[34px] py-1.5 px-3 sm:px-4 flex items-center justify-center gap-2 text-[11px] sm:text-xs font-semibold text-center border-b border-blue-800/40 select-none leading-normal">
+      <Clock size={13} className="text-cyan-400 shrink-0" />
+      <span className="truncate max-w-full">
+        <strong className="text-cyan-300 font-bold">{timeLeft.name}</strong> Deadline: {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
+      </span>
     </div>
   );
 };

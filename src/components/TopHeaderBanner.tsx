@@ -86,56 +86,40 @@ export const TopHeaderBanner: React.FC<TopHeaderBannerProps> = ({
     return (
       <aside 
         aria-label="Sponsored Announcement"
-        className="relative z-40 bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 text-white border-b border-amber-500/30 px-2 sm:px-6 py-1.5 shadow-md transition-all text-[11px] sm:text-xs overflow-hidden"
+        className="w-full bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 text-white border-b border-amber-500/20 px-3 sm:px-6 py-2 min-h-[38px] flex items-center shadow-sm select-none"
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 text-[11px] sm:text-xs">
-          {/* Entire scrolling area is clickable and opens activeAd.targetUrl directly */}
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-2.5 text-[11px] sm:text-xs leading-normal">
+          {/* Entire banner is clickable and opens activeAd.targetUrl directly */}
           <a
             href={activeAd.targetUrl || '#'}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => handleBannerClick(e, activeAd)}
-            className="relative flex-1 overflow-hidden flex items-center h-5 cursor-pointer hover:opacity-90 transition-opacity"
+            className="flex-1 min-w-0 flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity gap-2"
             title="Click to open sponsored link"
           >
-            <div 
-              style={{ animationDuration: `${tickerSpeed}s` }}
-              className="animate-marquee cursor-pointer gap-16"
-            >
-              <span className="inline-flex items-center gap-2 text-slate-100 font-medium text-[10px] sm:text-xs">
-                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                  {activeAd.badgeText || 'SPONSORED AD'}
-                </span>
-                {activeAd.brandName && (
-                  <strong className="font-bold text-amber-300">
-                    {activeAd.brandName}:
-                  </strong>
-                )}
-                <span>{activeAd.title} {activeAd.description ? `— ${activeAd.description}` : ''}</span>
-              </span>
-
-              <span className="inline-flex items-center gap-2 text-slate-100 font-medium text-[10px] sm:text-xs">
-                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                  {activeAd.badgeText || 'SPONSORED AD'}
-                </span>
-                {activeAd.brandName && (
-                  <strong className="font-bold text-amber-300">
-                    {activeAd.brandName}:
-                  </strong>
-                )}
-                <span>{activeAd.title} {activeAd.description ? `— ${activeAd.description}` : ''}</span>
-              </span>
+            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 shadow-sm font-mono">
+              {activeAd.badgeText || 'SPONSORED AD'}
+            </span>
+            <div className="truncate text-center text-slate-100 font-medium">
+              {activeAd.brandName && (
+                <strong className="font-bold text-amber-300 mr-1.5">
+                  {activeAd.brandName}:
+                </strong>
+              )}
+              <span>{activeAd.title} {activeAd.description ? `— ${activeAd.description}` : ''}</span>
             </div>
+            <ExternalLink size={12} className="text-amber-400 shrink-0 hidden sm:inline ml-0.5" />
           </a>
 
           {/* Tiny Dismiss Button */}
           <button
             onClick={() => setIsDismissed(true)}
-            className="p-1 rounded text-amber-300/70 hover:text-white hover:bg-amber-500/20 transition-colors shrink-0 z-10"
+            className="shrink-0 p-1 rounded text-amber-300/70 hover:text-white hover:bg-amber-500/20 transition-colors cursor-pointer"
             title="Dismiss top banner"
             aria-label="Dismiss banner"
           >
-            <X size={13} />
+            <X size={14} />
           </button>
         </div>
       </aside>
@@ -147,43 +131,33 @@ export const TopHeaderBanner: React.FC<TopHeaderBannerProps> = ({
     return (
       <aside 
         aria-label="Important Admission Update"
-        className="relative z-40 bg-gradient-to-r from-blue-950 via-slate-900 to-cyan-950 text-white border-b border-cyan-500/30 px-2 sm:px-6 py-1.5 shadow-md transition-all text-[11px] sm:text-xs overflow-hidden"
+        className="w-full bg-gradient-to-r from-blue-950 via-slate-900 to-cyan-950 text-white border-b border-cyan-500/20 px-3 sm:px-6 py-2 min-h-[38px] flex items-center shadow-sm select-none"
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-2.5 text-[11px] sm:text-xs leading-normal">
           {/* Entire banner is clickable to check cutoffs / open target tool */}
           <div 
             onClick={() => onNavigate ? onNavigate('calculator') : (window.location.href = '/calculator')}
-            className="relative flex-1 overflow-hidden flex items-center h-5 cursor-pointer hover:opacity-90 transition-opacity"
+            className="flex-1 min-w-0 flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity gap-2"
             title="Click to check 2026/2027 Cut-Off marks"
           >
-            <div 
-              style={{ animationDuration: `${tickerSpeed}s` }}
-              className="animate-marquee gap-16 cursor-pointer"
-            >
-              <span className="inline-flex items-center gap-2 text-slate-100 font-medium text-[10px] sm:text-xs">
-                <span className="text-[9px] font-black uppercase tracking-wider text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
-                  ANNOUNCEMENT
-                </span>
-                <strong className="text-cyan-300 font-bold">2026/2027 Admissions:</strong> Official Post-UTME screening forms, cut-off marks, CAPS updates and aggregate tools are now active across all Nigerian universities.
-              </span>
-
-              <span className="inline-flex items-center gap-2 text-slate-100 font-medium text-[10px] sm:text-xs">
-                <span className="text-[9px] font-black uppercase tracking-wider text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
-                  ANNOUNCEMENT
-                </span>
-                <strong className="text-cyan-300 font-bold">2026/2027 Admissions:</strong> Official Post-UTME screening forms, cut-off marks, CAPS updates and aggregate tools are now active across all Nigerian universities.
-              </span>
+            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 font-mono shadow-sm">
+              ANNOUNCEMENT
+            </span>
+            <div className="truncate text-center text-slate-100 font-medium">
+              <strong className="text-cyan-300 font-bold mr-1.5">2026/2027 Admissions:</strong>
+              <span>Official Post-UTME screening forms, cut-off marks, CAPS updates and aggregate tools are now active across all Nigerian universities.</span>
             </div>
+            <ArrowRight size={12} className="text-cyan-400 shrink-0 hidden sm:inline ml-0.5" />
           </div>
 
           {/* Tiny Dismiss Button */}
           <button
             onClick={() => setIsDismissed(true)}
-            className="p-1 rounded text-cyan-300/70 hover:text-white hover:bg-cyan-500/20 transition-colors shrink-0 z-10"
+            className="shrink-0 p-1 rounded text-cyan-300/70 hover:text-white hover:bg-cyan-500/20 transition-colors cursor-pointer"
             title="Dismiss top banner"
             aria-label="Dismiss banner"
           >
-            <X size={13} />
+            <X size={14} />
           </button>
         </div>
       </aside>

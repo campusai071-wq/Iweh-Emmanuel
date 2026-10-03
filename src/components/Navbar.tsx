@@ -41,11 +41,34 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, user, admin, s
   const [isSyncingNews, setIsSyncingNews] = useState(false);
   const [isMoreToolsOpen, setIsMoreToolsOpen] = useState(false);
   const debounceTimerRef = useRef<any>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     getAsuuStrikeStatus().then(status => setAsuuStatus(status?.status || 'Stable'));
+
+    // Dynamically calculate and publish actual rendered header height for flawless page content top offset
+    const updateHeaderHeight = () => {
+      if (navRef.current) {
+        const height = navRef.current.offsetHeight;
+        if (height > 0) {
+          document.documentElement.style.setProperty('--app-header-height', `${height}px`);
+        }
+      }
+    };
+
+    updateHeaderHeight();
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && navRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        updateHeaderHeight();
+      });
+      resizeObserver.observe(navRef.current);
+    }
+
+    window.addEventListener('resize', updateHeaderHeight);
 
     const handleNewsSync = (e: any) => {
       setIsSyncingNews(true);
@@ -58,7 +81,9 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, user, admin, s
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', updateHeaderHeight);
       window.removeEventListener('campusai_news_sync', handleNewsSync);
+      if (resizeObserver) resizeObserver.disconnect();
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, []);
@@ -281,7 +306,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, user, admin, s
   ];
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 w-full z-[100] transition-all duration-300 ease-in-out ${
+    <nav ref={navRef} className={`fixed top-0 left-0 right-0 w-full z-[100] transition-all duration-300 ease-in-out ${
       isScrolled 
         ? 'bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 shadow-sm' 
         : 'bg-white/95 dark:bg-gray-950/95 border-b border-gray-200/80 dark:border-gray-800 backdrop-blur-md'

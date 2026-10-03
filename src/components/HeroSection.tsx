@@ -153,7 +153,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({
   ];
 
   return (
-    <div className="relative pt-24 pb-16 overflow-visible bg-gray-950">
+    <div className="relative pt-6 sm:pt-8 md:pt-10 pb-16 overflow-visible bg-gray-950">
       {/* Abstract Background Elements */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-900/30 rounded-full blur-[128px]"></div>

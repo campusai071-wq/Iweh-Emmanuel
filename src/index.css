@@ -16,13 +16,17 @@
   }
 }
 
+:root {
+  --app-header-height: 166px;
+}
+
 /* Custom Marquee Ticker Keyframes */
 @keyframes marquee {
   0% {
-    transform: translateX(0%);
+    transform: translate3d(0, 0, 0);
   }
   100% {
-    transform: translateX(-50%);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
@@ -30,10 +34,20 @@
   display: inline-flex;
   white-space: nowrap;
   animation: marquee 150s linear infinite;
+  will-change: transform;
 }
 
-.animate-marquee:hover {
+.animate-marquee:hover,
+.animate-marquee:focus-within {
   animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none !important;
+    transform: none !important;
+    overflow-x: auto;
+  }
 }
 * {
   box-sizing: border-box;

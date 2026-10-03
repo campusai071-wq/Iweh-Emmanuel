@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import NewsGrid from './NewsGrid';
 import NewsDetailView from './NewsDetailView';
 import SEO from './SEO';
 import { NewsItem } from '../types';
 import { slugify } from '../services/utils';
+import { truncateCleanPlainText } from '../utils/seoSanitizer';
+import { getNewsItemBySlug } from '../services/dbService';
 
 interface NewsRouteResolverProps {
   user: any;
@@ -88,10 +90,26 @@ export const NewsRouteResolver: React.FC<NewsRouteResolverProps> = ({
 }) => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [fetchedArticle, setFetchedArticle] = useState<NewsItem | null>(null);
+
+  const slugClean = (slug || '').toLowerCase().trim();
+
+  const currentNews = useMemo(() => {
+    return news.find((n: NewsItem) => n.id === slug || n.slug === slug || n.title?.toLowerCase().split(' ').join('-') === slugClean) || fetchedArticle;
+  }, [news, slug, slugClean, fetchedArticle]);
+
+  useEffect(() => {
+    if (!slug || CATEGORY_MAP[slugClean]) return;
+    if (!currentNews) {
+      getNewsItemBySlug(slugClean).then(art => {
+        if (art) setFetchedArticle(art);
+      }).catch(() => {});
+    }
+  }, [slug, slugClean, currentNews]);
 
   if (!slug) {
     return (
-      <div className="container mx-auto px-4 md:px-8 pt-24 pb-20 min-h-screen">
+      <div className="container mx-auto px-4 md:px-8 pt-4 sm:pt-6 md:pt-8 pb-20 min-h-screen">
         <SEO 
           title="2025/2026 JAMB & Admission News Hub | CampusAI" 
           description="Stay updated with official admission guidelines, Post-UTME registration dates, and university screening schedules for the 2026 Nigerian academic cycle."
@@ -102,13 +120,11 @@ export const NewsRouteResolver: React.FC<NewsRouteResolverProps> = ({
     );
   }
 
-  const slugClean = slug.toLowerCase().trim();
-
   // Check if `:slug` is a known category (e.g. /news/jamb, /news/federal, /news/state, etc.)
   if (CATEGORY_MAP[slugClean]) {
     const categoryInfo = CATEGORY_MAP[slugClean];
     return (
-      <div className="container mx-auto px-4 md:px-8 pt-24 pb-20 min-h-screen">
+      <div className="container mx-auto px-4 md:px-8 pt-4 sm:pt-6 md:pt-8 pb-20 min-h-screen">
         <SEO 
           title={`${categoryInfo.title} | CampusAI.ng`} 
           description={categoryInfo.desc}
@@ -141,8 +157,6 @@ export const NewsRouteResolver: React.FC<NewsRouteResolverProps> = ({
   }
 
   // Otherwise, treat `:slug` as an individual article slug (e.g., /news/unilag-post-utme-2026)
-  const currentNews = news.find((n: NewsItem) => n.id === slug || n.slug === slug || n.title?.toLowerCase().split(' ').join('-') === slugClean);
-
   const filteredRelated = currentNews 
     ? news.filter((n: NewsItem) => n.category === currentNews.category && n.id !== currentNews.id).slice(0, 3)
     : [];
@@ -154,18 +168,18 @@ export const NewsRouteResolver: React.FC<NewsRouteResolverProps> = ({
   };
 
   return (
-    <div className="container mx-auto px-0 md:px-8 max-w-[100vw] overflow-x-hidden pt-24 md:pt-32 pb-20 min-h-screen">
+    <div className="container mx-auto px-0 md:px-8 max-w-[100vw] overflow-x-hidden pt-4 sm:pt-6 md:pt-8 pb-20 min-h-screen">
       {currentNews && (
         <SEO 
           title={currentNews.title} 
-          description={currentNews.excerpt || (currentNews.fullContent || '').substring(0, 155)} 
+          description={currentNews.excerpt || truncateCleanPlainText(currentNews.fullContent || (currentNews as any).content || '', 155)} 
           image={currentNews.image}
           article={true}
           canonical={`/news/${slugClean}`}
         />
       )}
       <NewsDetailView 
-        news={currentNews}
+        news={currentNews || undefined}
         user={user} 
         isAdmin={isAuthorizedAdmin}
         onClose={closeArticle} 

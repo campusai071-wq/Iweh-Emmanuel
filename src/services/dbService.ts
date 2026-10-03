@@ -451,7 +451,7 @@ export const getCloudNews = async (includeFuture: boolean = false, includeJunk: 
     return category ? processed.filter(n => n.category === category) : processed;
   }
 
-  // Direct client-side Firestore fetch using standard Firebase SDK with a strict 3s timeout
+  // Direct client-side Firestore fetch using standard Firebase SDK with a bounded 2.5s timeout
   if (db) {
     try {
       const fetchLimit = effectiveLimit;
@@ -468,10 +468,10 @@ export const getCloudNews = async (includeFuture: boolean = false, includeJunk: 
       
       const q = query(newsRef, ...constraints);
 
-      // Race getDocs against a 6000ms timeout to prevent hanging on slow network or offline states
+      // Race getDocs against a 2500ms timeout to prevent hanging on slow network or offline states
       const querySnapshot = await Promise.race([
         getDocs(q),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore client fetch timeout")), 6000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore client fetch timeout")), 2500))
       ]) as any;
 
       const cloudNews: NewsItem[] = [];
@@ -485,31 +485,32 @@ export const getCloudNews = async (includeFuture: boolean = false, includeJunk: 
         });
       });
 
-      if (cloudNews.length > 0) {
-        const localPublished = getPublishedNews();
-        const bookmarkedArticles = Object.values(readBookmarkedArticles());
-        
-        // Filter out mock news items that share title, slug, or ID with cloud articles
-        const uniqueMockNews = MOCK_NEWS.filter(m => 
-          !cloudNews.some((c: any) => 
-            c.id === m.id || 
-            (c.slug && m.slug && c.slug.toLowerCase() === m.slug.toLowerCase()) ||
-            (c.title && m.title && c.title.trim().toLowerCase() === m.title.trim().toLowerCase())
-          )
-        );
+      const localPublished = getPublishedNews();
+      const bookmarkedArticles = Object.values(readBookmarkedArticles());
+      
+      // Filter out mock news items that share title, slug, or ID with cloud articles
+      const uniqueMockNews = MOCK_NEWS.filter(m => 
+        !cloudNews.some((c: any) => 
+          c.id === m.id || 
+          (c.slug && m.slug && c.slug.toLowerCase() === m.slug.toLowerCase()) ||
+          (c.title && m.title && c.title.trim().toLowerCase() === m.title.trim().toLowerCase())
+        )
+      );
 
-        // Merge local posts, bookmarks, cloud news, and non-duplicate mock news
-        const mergedNews = lastCreatedAt ? cloudNews : [...localPublished, ...bookmarkedArticles, ...cloudNews, ...uniqueMockNews];
+      // Merge local posts, bookmarks, cloud news, and non-duplicate mock news
+      const mergedNews = lastCreatedAt ? cloudNews : [...localPublished, ...bookmarkedArticles, ...cloudNews, ...uniqueMockNews];
 
-        if (!lastCreatedAt) {
-          cachedRawNews = mergedNews;
-          lastRawFetchTime = now;
-        }
-
-        const processed = filterAndSortNews(mergedNews, includeFuture, now, includeJunk);
-        const filtered = category ? processed.filter(n => n.category === category) : processed;
-        return filtered;
+      if (!lastCreatedAt) {
+        cachedRawNews = mergedNews;
+        lastRawFetchTime = now;
+        try {
+          localStorage.setItem('campusai_cached_news', JSON.stringify(mergedNews.slice(0, 30)));
+        } catch {}
       }
+
+      const processed = filterAndSortNews(mergedNews, includeFuture, now, includeJunk);
+      const filtered = category ? processed.filter(n => n.category === category) : processed;
+      return filtered;
     } catch (e: any) {
       console.debug?.("[Cloud News] Direct fetch note, using proxy/cached fallback:", e?.message || e);
     }
@@ -528,7 +529,7 @@ export const getCloudNews = async (includeFuture: boolean = false, includeJunk: 
     if (lastCreatedAt) {
       payload.startAfterValue = lastCreatedAt;
     }
-    const res = await axios.post(apiUrl, payload, { timeout: 10000 });
+    const res = await axios.post(apiUrl, payload, { timeout: 2000 });
     if (res.data?.success && res.data?.data && res.data.data.length > 0) {
       const cloudNews = res.data.data.map((item: any) => ({
         ...item,
@@ -549,6 +550,9 @@ export const getCloudNews = async (includeFuture: boolean = false, includeJunk: 
       if (!lastCreatedAt) {
         cachedRawNews = mergedNews;
         lastRawFetchTime = now;
+        try {
+          localStorage.setItem('campusai_cached_news', JSON.stringify(mergedNews.slice(0, 30)));
+        } catch {}
       }
 
       const processed = filterAndSortNews(mergedNews, includeFuture, now, includeJunk);

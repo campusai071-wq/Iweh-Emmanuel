@@ -17,15 +17,32 @@ if (typeof window !== 'undefined') {
   }
 }
 
+const env = (typeof import.meta !== 'undefined' && (import.meta as any).env) || {};
+const procEnv = (typeof process !== 'undefined' && process.env) || {};
+
+const getEnvVar = (key: string): string => {
+  return env[key] || procEnv[key] || "";
+};
+
+const resolvedFirebaseConfig = localFirebaseConfig || {
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY') || (firebaseConfig as any)?.apiKey || "",
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN') || (firebaseConfig as any)?.authDomain || "",
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID') || (firebaseConfig as any)?.projectId || "",
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET') || (firebaseConfig as any)?.storageBucket || "",
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID') || (firebaseConfig as any)?.messagingSenderId || "",
+  appId: getEnvVar('VITE_FIREBASE_APP_ID') || (firebaseConfig as any)?.appId || "",
+  firestoreDatabaseId: getEnvVar('VITE_FIREBASE_DATABASE_ID') || (firebaseConfig as any)?.firestoreDatabaseId || "(default)"
+};
+
 export const MASTER_CONFIG = {
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY || "", 
-  FLUTTERWAVE_PUBLIC_KEY: process.env.VITE_FLUTTERWAVE_PUBLIC_KEY || "",
-  FIREBASE: localFirebaseConfig || firebaseConfig
+  GEMINI_API_KEY: getEnvVar('VITE_GEMINI_API_KEY') || getEnvVar('GEMINI_API_KEY') || "", 
+  FLUTTERWAVE_PUBLIC_KEY: getEnvVar('VITE_FLUTTERWAVE_PUBLIC_KEY') || "",
+  FIREBASE: resolvedFirebaseConfig
 };
 export const hasLocalFirebase = !!localFirebaseConfig;
 
 const configNode = MASTER_CONFIG.FIREBASE as any;
-export const firestoreDatabaseId = configNode.firestoreDatabaseId;
+export const firestoreDatabaseId = configNode.firestoreDatabaseId || "(default)";
 const { firestoreDatabaseId: _, ...standardConfig } = configNode;
 
 const app = getApps().length > 0 ? getApp() : initializeApp(standardConfig);

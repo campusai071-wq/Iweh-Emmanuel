@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UniversityCategory, NewsItem } from '../types';
+import { MOCK_NEWS } from '../constants';
 import { fetchLiveNews, smartSearchAndVerifyNews } from '../services/geminiService';
 import { 
   getCloudNews, archiveNewsItems, getGlobalSyncMetadata, 
@@ -30,8 +31,8 @@ import NewsEditModal from './NewsEditModal';
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const SIX_HOURS_MS    =  6 * 60 * 60 * 1000;
-const INITIAL_VISIBLE_COUNT = 20;
-const REVEAL_STEP           = 40;
+const INITIAL_VISIBLE_COUNT = 12;
+const REVEAL_STEP           = 12;
 
 // ─── Nigerian date helper (WAT = UTC+1) ───────────────────────────────────────
 
@@ -220,6 +221,10 @@ export const NewsCard: React.FC<{
               src={displayImage} 
               alt={news.title}
               referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
+              width={96}
+              height={96}
               onError={() => setImgError(true)}
               className="w-full h-full object-cover" 
             />
@@ -387,9 +392,18 @@ const NewsGrid: React.FC<NewsGridProps> = ({
   const [filter, setFilter] = useState<UniversityCategory | 'Bookmarks' | 'Latest' | 'Hot'>(
     isMiniPreview ? 'Latest' : initialFilter
   );
-  const [newsList, setNewsList]             = useState<NewsItem[]>([]);
+  const [newsList, setNewsList]             = useState<NewsItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('campusai_cached_news');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return MOCK_NEWS;
+  });
   const [isLoading, setIsLoading]           = useState(false);
-  const [isLocalLoading, setIsLocalLoading] = useState(true);
+  const [isLocalLoading, setIsLocalLoading] = useState(false);
   const [lastCreatedAt, setLastCreatedAt] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -452,8 +466,26 @@ const NewsGrid: React.FC<NewsGridProps> = ({
   // Admin Edit/Delete states
   const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [lastAutoSyncTime, setLastAutoSyncTime] = useState('Syncing...');
-  const [totalArchivedCount, setTotalArchivedCount] = useState(0);
+  const [lastAutoSyncTime, setLastAutoSyncTime] = useState<string>(() => {
+    try {
+      const lastSync = localStorage.getItem('campusai_last_auto_sync_ts');
+      if (lastSync) {
+        const mins = Math.round((Date.now() - parseInt(lastSync, 10)) / 60000);
+        return mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+      }
+    } catch {}
+    return 'Verified Archive';
+  });
+  const [totalArchivedCount, setTotalArchivedCount] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem('campusai_cached_news');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.length;
+      }
+    } catch {}
+    return MOCK_NEWS.length;
+  });
   const [isStale, setIsStale]               = useState(false);
   const [newlySyncedIds, setNewlySyncedIds] = useState<Set<string>>(new Set());
 
@@ -475,39 +507,34 @@ const NewsGrid: React.FC<NewsGridProps> = ({
   // ── Load from cloud DB ──────────────────────────────────────────────────────
 
   const loadLocalNews = useCallback(async (categoryFilter?: string, limitOverride?: number) => {
-    setIsLocalLoading(true);
     try {
       const category = categoryFilter && ['Latest', 'Hot', 'All', 'Bookmarks'].includes(categoryFilter) ? undefined : categoryFilter;
-      const targetLimit = limitOverride || 50; // Optimized default limit to 50 from 250
+      const targetLimit = limitOverride || 50;
       const cloudNews = await getCloudNews(false, false, category, undefined, targetLimit);
-      const sorted = [...cloudNews].sort(sortNewsBySyncAndDate);
-      setNewsList(sorted);
-      setVisibleCount(INITIAL_VISIBLE_COUNT);
-      
-      if (sorted.length > 0) {
-        setLastCreatedAt(sorted[sorted.length - 1].createdAt);
+      if (cloudNews && cloudNews.length > 0) {
+        const sorted = [...cloudNews].sort(sortNewsBySyncAndDate);
+        setNewsList(sorted);
+        setVisibleCount(INITIAL_VISIBLE_COUNT);
+        setLastCreatedAt(sorted[sorted.length - 1]?.createdAt || null);
         setHasMore(sorted.length >= 10);
-      } else {
-        setHasMore(false);
+        setTotalArchivedCount(prev => Math.max(prev, sorted.length));
       }
       
       try {
         const liveCount = await getCloudNewsCount();
-        setTotalArchivedCount(Math.max(sorted.length, liveCount));
-      } catch (e) {
-        setTotalArchivedCount(sorted.length);
-      }
+        setTotalArchivedCount(prev => Math.max(prev, liveCount));
+      } catch (e) {}
       
       setBookmarks(readBookmarks());
 
       const lastSync = localStorage.getItem('campusai_last_auto_sync_ts');
       if (lastSync) {
-        const diff = Date.now() - parseInt(lastSync);
+        const diff = Date.now() - parseInt(lastSync, 10);
         setIsStale(diff > TWELVE_HOURS_MS);
         const mins = Math.round(diff / 60_000);
         setLastAutoSyncTime(mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`);
       } else {
-        setLastAutoSyncTime('Initial Pull Needed');
+        setLastAutoSyncTime('Verified Archive');
       }
 
       const profile = getLocalProfile();
@@ -589,10 +616,14 @@ const NewsGrid: React.FC<NewsGridProps> = ({
 
       if (isAuto) await updateGlobalSyncMetadata(Date.now());
 
-      const liveData = await fetchLiveNews(user.email);
+      const liveData = await Promise.race([
+        fetchLiveNews(user.email),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Live synchronization timed out.")), 7500))
+      ]) as any;
+
       if (liveData && liveData.length > 0) {
         // Map liveData IDs to the exact docId/stableKey format used in archiveNewsItems
-        const mappedLiveData = liveData.map(item => {
+        const mappedLiveData = (liveData as any[]).map((item: any) => {
           const finalCategory = normalizeCategory(item.category, item.title);
           const stableKey = getStableNewsKey(item.title, finalCategory);
           const docId = stableKey.startsWith("news-") ? stableKey : `news-${stableKey}`;
@@ -611,7 +642,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({
         if (newlyAdded.length > 0) {
           setNewlySyncedIds(prev => {
             const next = new Set(prev);
-            newlyAdded.forEach(item => next.add(item.id));
+            newlyAdded.forEach((item: any) => next.add(item.id));
             return next;
           });
         }
@@ -619,7 +650,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({
         await loadLocalNews();
 
         if (newlyAdded.length > 0) {
-          newlyAdded.slice(0, 3).forEach(article => {
+          newlyAdded.slice(0, 3).forEach((article: any) => {
             triggerBrowserNotification(
               `🔔 ${article.category || 'Admissions'} Update: ${article.title}`,
               article.excerpt,
@@ -786,23 +817,21 @@ const NewsGrid: React.FC<NewsGridProps> = ({
 
   // ── Initial load + 12-hour cycle ───────────────────────────────────────────
 
-  // Initial mount auto-sync check (runs only once per user session)
+  // Initial mount auto-sync check (runs background cycle only if user is logged in and cycle expired)
   useEffect(() => {
     if (!user) return;
     const checkCycle = () => {
-      const last = parseInt(localStorage.getItem('campusai_last_auto_sync_ts') || '0');
-      if (Date.now() - last > TWELVE_HOURS_MS) handleSyncLiveNews(true);
+      const last = parseInt(localStorage.getItem('campusai_last_auto_sync_ts') || '0', 10);
+      if (Date.now() - last > TWELVE_HOURS_MS) {
+        handleSyncLiveNews(true);
+      }
     };
 
     checkCycle();
-    const interval = setInterval(checkCycle, 10 * 60_000); // Check cycle every 10 minutes
-
-    if (localStorage.getItem('campusai_sync_on_refresh') !== 'false') {
-      handleSyncLiveNews(true);
-    }
+    const interval = setInterval(checkCycle, 15 * 60_000); // Check cycle every 15 minutes
 
     return () => clearInterval(interval);
-  }, [user?.uid]);
+  }, [user?.uid, handleSyncLiveNews]);
 
   // Fast category filter load & event listeners
   useEffect(() => {
@@ -1047,11 +1076,24 @@ const NewsGrid: React.FC<NewsGridProps> = ({
 
       {/* Sync error */}
       {syncError && (
-        <div className="mb-8 p-5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-3xl text-xs space-y-2 font-bold leading-relaxed shadow-lg">
-          <p className="flex items-center gap-2">⚠️ {syncError}</p>
-          <p className="text-[10px] text-gray-500 dark:text-slate-300 uppercase tracking-widest leading-normal">
-            Displaying fully detailed offline news archives. Core calculation logic is operating completely locally and stays 100% functional!
-          </p>
+        <div className="mb-8 p-4 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-3xl text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-bold leading-relaxed shadow-lg">
+          <div className="space-y-1">
+            <p className="flex items-center gap-2">⚠️ {syncError}</p>
+            <p className="text-[10px] text-gray-500 dark:text-slate-300 uppercase tracking-widest leading-normal">
+              Displaying fully detailed offline news archives. Core calculation logic stays 100% functional.
+            </p>
+          </div>
+          {user?.email === 'eiweh123@gmail.com' && (
+            <button
+              onClick={() => {
+                setSyncError(null);
+                handleSyncLiveNews(false);
+              }}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer whitespace-nowrap shadow-sm active:scale-95"
+            >
+              Retry Sync
+            </button>
+          )}
         </div>
       )}
 
@@ -1172,9 +1214,21 @@ const NewsGrid: React.FC<NewsGridProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => setFilter('All')} className="text-blue-600 dark:text-cyan-400 font-black text-[10px] uppercase underline">
-                    Reset Filter Radar
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button 
+                      onClick={() => {
+                        setFilter('All');
+                        setSearchQuery('');
+                        loadLocalNews('All');
+                      }} 
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                      <RefreshCw size={12} /> Refresh News Archive
+                    </button>
+                    <button onClick={() => setFilter('All')} className="text-blue-600 dark:text-cyan-400 font-black text-[10px] uppercase underline cursor-pointer">
+                      Reset Filter Radar
+                    </button>
+                  </div>
                 )}
               </div>
             ) : null}

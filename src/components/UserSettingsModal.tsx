@@ -413,10 +413,11 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Target University</label>
                   <div className="relative">
-                    <GraduationCap size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <GraduationCap size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input 
                       type="text" 
                       value={formData.university || ''}
+                      title={formData.university || ''}
                       onChange={e => setFormData({...formData, university: e.target.value})}
                       className="w-full bg-white dark:bg-gray-900 pl-10 pr-3 py-3 rounded-xl font-bold text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-gray-700 focus:border-blue-500 text-xs"
                       placeholder="e.g. UNILAG, FUTA, UI"
@@ -426,10 +427,11 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Target Course</label>
                   <div className="relative">
-                    <Monitor size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Monitor size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input 
                       type="text" 
                       value={formData.targetCourse || ''}
+                      title={formData.targetCourse || ''}
                       onChange={e => setFormData({...formData, targetCourse: e.target.value})}
                       className="w-full bg-white dark:bg-gray-900 pl-10 pr-3 py-3 rounded-xl font-bold text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-gray-700 focus:border-blue-500 text-xs"
                       placeholder="e.g. Computer Science, Nursing"

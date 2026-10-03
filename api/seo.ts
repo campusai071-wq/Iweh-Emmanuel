@@ -102,49 +102,51 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Pr
 
 function sanitizeWellFormedText(str: string): string {
   if (!str) return '';
-  let clean = str
-    .replace(/<[^>]*>/g, '')
-    .replace(/#+\s+/g, '')
-    .replace(/\*+/g, '')
-    .replace(/_+/g, '')
-    .replace(/`{1,3}[^`]*`{1,3}/g, '')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-    .replace(/\\n/g, ' ')
+  return str
+    // Remove HTML tags
+    .replace(/<[^>]*>/g, ' ')
+    // Remove markdown links & images
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Remove markdown headers (#, ##, ###)
+    .replace(/^#+\s+/gm, '')
+    .replace(/\n#+\s+/g, ' ')
+    // Remove bold, italic, strikethrough (**, *, __, _, ~~)
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(\*|_)(.*?)\1/g, '$2')
+    .replace(/~~(.*?)~~/g, '$1')
+    // Remove blockquotes and code blocks
+    .replace(/^\s*>\s+/gm, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    // Convert newlines, tabs, and multiple whitespace to single space
+    .replace(/[\r\n\t]+/g, ' ')
     .replace(/\s+/g, ' ')
+    // Strip orphaned high and low UTF-16 surrogates
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
     .trim();
-
-  if (typeof (clean as any).toWellFormed === 'function') {
-    clean = (clean as any).toWellFormed();
-  } else {
-    clean = clean.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
-  }
-  return clean;
 }
 
 function safeTruncateUnicode(str: string, maxLen: number): string {
   const clean = sanitizeWellFormedText(str);
-  if (clean.length <= maxLen) return clean;
+  if (!clean) return '';
 
   const codePoints = Array.from(clean);
   if (codePoints.length <= maxLen) return clean;
 
-  const truncated = codePoints.slice(0, maxLen - 3).join('');
-  let wellFormed = typeof (truncated as any).toWellFormed === 'function'
-    ? (truncated as any).toWellFormed()
-    : truncated.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+  const targetLen = Math.max(10, maxLen - 3);
+  const slice = codePoints.slice(0, targetLen).join('').trim();
 
-  const lastSpace = wellFormed.lastIndexOf(' ');
-  if (lastSpace > Math.floor(maxLen * 0.4)) {
-    wellFormed = wellFormed.substring(0, lastSpace);
-  }
+  const lastSpace = slice.lastIndexOf(' ');
+  const result = (lastSpace > Math.floor(maxLen * 0.4)) ? slice.slice(0, lastSpace).trim() : slice;
 
-  return wellFormed.trim() + '...';
+  return result.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '').trim() + '...';
 }
 
 function sanitizeJsonLdObject(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'string') {
-    return safeTruncateUnicode(obj, 15000);
+    return obj.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
   }
   if (Array.isArray(obj)) {
     return obj.map(sanitizeJsonLdObject);

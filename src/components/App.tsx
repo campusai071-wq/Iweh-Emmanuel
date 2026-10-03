@@ -7,21 +7,22 @@ import HeroSection from './HeroSection';
 import Footer from './Footer';
 import MobileBottomNav from './MobileBottomNav';
 import SEO from './SEO';
-import NewsGrid from './NewsGrid';
-import NewsDetailView from './NewsDetailView';
-import NewsRouteResolver from './NewsRouteResolver';
-import Dashboard from './Dashboard';
-import PostUtmeReleaseHub from './PostUtmeReleaseHub';
-import UniversityDirectory from './UniversityDirectory';
-import TopRankings from './TopRankings';
+import { truncateCleanPlainText } from '../utils/seoSanitizer';
 import Sidebar from './Sidebar';
 import ToolsGrid from './ToolsGrid';
 import HowItWorks from './HowItWorks';
-import SimpleCalculator from './SimpleCalculator';
-import CalculationStats from './CalculationStats';
 import AdUnit from './AdUnit';
 
 // Code-split heavy secondary views & modals for faster initial load
+const NewsGrid = lazyWithRetry(() => import('./NewsGrid'));
+const NewsDetailView = lazyWithRetry(() => import('./NewsDetailView'));
+const NewsRouteResolver = lazyWithRetry(() => import('./NewsRouteResolver'));
+const Dashboard = lazyWithRetry(() => import('./Dashboard'));
+const PostUtmeReleaseHub = lazyWithRetry(() => import('./PostUtmeReleaseHub'));
+const UniversityDirectory = lazyWithRetry(() => import('./UniversityDirectory'));
+const TopRankings = lazyWithRetry(() => import('./TopRankings'));
+const SimpleCalculator = lazyWithRetry(() => import('./SimpleCalculator'));
+const CalculationStats = lazyWithRetry(() => import('./CalculationStats'));
 const CutoffCalculator = lazyWithRetry(() => import('./CutoffCalculator'));
 const CbtSimulator = lazyWithRetry(() => import('./CbtSimulator'));
 const PolicySection = lazyWithRetry(() => import('./PolicySection'));
@@ -43,7 +44,6 @@ const CookieConsent = lazyWithRetry(() => import('./CookieConsent'));
 const LegalSection = lazyWithRetry(() => import('./LegalSection'));
 const Tour = lazyWithRetry(() => import('./Tour'));
 const InstallPrompt = lazyWithRetry(() => import('./InstallPrompt'));
-const CalculationAnimation = lazyWithRetry(() => import('./CalculationAnimation'));
 const StatusPage = lazyWithRetry(() => import('./StatusPage'));
 const ContactPage = lazyWithRetry(() => import('./ContactPage'));
 const ChatPage = lazyWithRetry(() => import('./ChatPage'));
@@ -65,8 +65,8 @@ const CGPACalculator = lazy(() =>
 );
 const AdvertisePage = lazyWithRetry(() => import('./AdvertisePage'));
 const PartnerNetworkPage = lazyWithRetry(() => import('./PartnerNetworkPage'));
-import { CbtCenterLocator } from './CbtCenterLocator';
-import { PdfStore } from './PdfStore';
+const CbtCenterLocator = lazyWithRetry(() => import('./CbtCenterLocator').then(m => ({ default: m.CbtCenterLocator })));
+const PdfStore = lazyWithRetry(() => import('./PdfStore').then(m => ({ default: m.PdfStore })));
 import { useDailyReminder } from '../hooks/useDailyReminder';
 import { useStandalone } from '../hooks/useStandalone';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
@@ -113,11 +113,11 @@ const NewsDetailWrapper = ({ user, isAuthorizedAdmin, news, setIsAuthModalOpen, 
   };
 
   return (
-    <div className="container mx-auto px-0 md:px-8 max-w-[100vw] overflow-x-hidden pt-24 md:pt-32 pb-20 min-h-screen">
+    <div className="container mx-auto px-0 md:px-8 max-w-[100vw] overflow-x-hidden pt-4 sm:pt-6 md:pt-8 pb-20 min-h-screen">
       {currentNews && (
         <SEO 
           title={currentNews.title} 
-          description={currentNews.excerpt || currentNews.content.substring(0, 155)} 
+          description={currentNews.excerpt || truncateCleanPlainText(currentNews.fullContent || (currentNews as any).content || '', 155)} 
           image={currentNews.image}
           article={true}
           canonical={`/news/${slug}`}
@@ -193,7 +193,7 @@ const SchoolCalculatorWrapper = ({ user, setIsAuthModalOpen, setAuthModalMode, s
   }
 
   return (
-    <div className="pt-24 min-h-screen bg-gray-950">
+    <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
       <SEO 
         title={`${computedSchoolName} 2026 Aggregate Calculator`}
         description={`Calculate your ${computedSchoolName} aggregate score for the 2026 admission cycle. Accurate results based on official departmental cut-off marks and merit guidelines.`}
@@ -230,7 +230,16 @@ const AppContent: React.FC = () => {
     return null;
   });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [news, setNews] = useState<NewsItem[]>([]);
+  const [news, setNews] = useState<NewsItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('campusai_cached_news');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [activeArticle, setActiveArticle] = useState<NewsItem | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -1013,7 +1022,7 @@ const AppContent: React.FC = () => {
         </Suspense>
       )}
 
-      <main className={isAdminPage ? "min-h-screen" : "pb-40"}>
+      <main className={isAdminPage ? "min-h-screen" : "pb-40"} style={{ paddingTop: isAdminPage ? '0px' : 'var(--app-header-height, 166px)' }}>
         <Suspense fallback={
           <div className="min-h-[40vh] bg-gray-950 flex flex-col items-center justify-center p-6 gap-3">
             <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1034,7 +1043,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/dashboard" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <SEO 
                 title="Student Dashboard | 2026 Admission Progress" 
                 description="Monitor your JAMB scores, university merit chances, and academic progress in real-time. Personalized AI insights for the 2026 Nigerian admission cycle."
@@ -1051,7 +1060,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/calculator-simple" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <SimpleCalculator />
             </div>
           } />
@@ -1080,7 +1089,7 @@ const AppContent: React.FC = () => {
             />
           } />
           <Route path="/cbt-simulator" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1092,7 +1101,7 @@ const AppContent: React.FC = () => {
             </div>
           } />
           <Route path="/cbt-history" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1104,13 +1113,13 @@ const AppContent: React.FC = () => {
             </div>
           } />
           <Route path="/cbt-locator" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <SEO title="JAMB CBT Center & Campus Locator | Google Maps Grounding" description="Find accredited JAMB CBT examination centers, university campuses, and nearby student accommodation across Nigeria with Google Maps grounded location search." canonical="/cbt-locator" />
               <CbtCenterLocator />
             </div>
           } />
           <Route path="/study-hub" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1122,7 +1131,7 @@ const AppContent: React.FC = () => {
             </div>
           } />
           <Route path="/target" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1134,7 +1143,7 @@ const AppContent: React.FC = () => {
             </div>
           } />
           <Route path="/ai-coach" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1147,7 +1156,7 @@ const AppContent: React.FC = () => {
           } />
           
           <Route path="/calculator" element={
-            <div className="pt-24 min-h-screen bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
               <SEO 
                 title="Official 2026 University Aggregate Calculator" 
                 description="Universal 2026 admission aggregate calculator for all Nigerian Universities, Polytechnics, and Colleges of Education. Features official institutional formula compliance."
@@ -1183,7 +1192,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/admissions" element={
-            <div className="pt-24 md:pt-32 min-h-screen bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
               <SEO 
                 title="2026 Admissions Knowledge Base | Course Requirements"
                 description="Explore official JAMB 2026 course requirements, UTME subject combinations, O'Level credits, and institution-specific special considerations."
@@ -1194,7 +1203,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/universities" element={
-            <div className="pt-20 min-h-screen bg-white dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-white dark:bg-gray-950">
               <SEO 
                 title="2026 Institutional Gateways & Portal Directory"
                 description="Secure, direct access to verified admission portals, Post-UTME trackers, and academic profiles for over 150 Nigerian universities, polytechnics, and colleges."
@@ -1211,7 +1220,7 @@ const AppContent: React.FC = () => {
           } />
           
           <Route path="/university-rankings" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <SEO 
                 title="Nigerian University Rankings 2027 | Global & Internal Metrics"
                 description="View the official Times Higher Education 2027 world rankings and CampusAI's proprietary institutional quality assessment."
@@ -1222,7 +1231,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/universities/:slug" element={
-            <div className="pt-20 min-h-screen bg-white dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-white dark:bg-gray-950">
               <SEO 
                 title="Institutional Portal Profile & Post-UTME Tracker"
                 description="Detailed profile, portal link, departments, and Post-UTME screening dates for Nigerian institutions."
@@ -1239,7 +1248,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/postutme" element={
-            <div className="pt-24 min-h-screen bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
               <SEO 
                 title="2025/2026 Post-UTME Screening Hub & Release Dates"
                 description="Official tracking for 2026 Post-UTME registration dates, screening schedules, and merit cut-off marks for Nigerian federal and state universities."
@@ -1274,7 +1283,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/post-utme" element={
-            <div className="pt-24 min-h-screen bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
               <SEO 
                 title="2025/2026 Post-UTME Screening Hub & Release Dates"
                 description="Official tracking for 2026 Post-UTME registration dates, screening schedules, and merit cut-off marks for Nigerian federal and state universities."
@@ -1309,7 +1318,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/result-slip" element={
-            <div className="pt-24 min-h-screen bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
               <SEO 
                 title="2025/2026 Post-UTME Screening Hub & Result Slip"
                 description="Official tracking for 2026 Post-UTME registration dates, screening schedules, and JAMB Original Result Slip printing."
@@ -1344,7 +1353,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/result-slip-guide" element={
-            <div className="pt-24 min-h-screen bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950">
               <SEO 
                 title="JAMB Original Result Slip Printing Guide & Portal"
                 description="Step-by-step guidelines on how to print your original JAMB result slip from the e-Facility portal for Post-UTME screening."
@@ -1355,13 +1364,13 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/pdf-store" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <PdfStore user={user} onLoginRequest={() => setIsAuthModalOpen(true)} />
             </div>
           } />
 
           <Route path="/discussions" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1372,7 +1381,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/discussion-hub" element={
-            <div className="pt-24 min-h-screen bg-gray-50 dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-50 dark:bg-gray-950">
               <CbtSimulator 
                 user={user} 
                 setIsScholarPackOpen={setIsScholarPackOpen} 
@@ -1383,7 +1392,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/syllabus" element={
-            <div className="pt-24 md:pt-32 min-h-screen bg-gray-950 px-4 md:px-8">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950 px-4 md:px-8">
               <SEO 
                 title="UTME Master Syllabus Explorer - JAMB 2025/2026"
                 description="Browse official UTME examination syllabuses for Chemistry, Biology, Physics, Mathematics, English, Commerce, Economics, Government, CRS, French, Art, Arabic, and Computer Studies."
@@ -1397,7 +1406,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/cgpa-calculator" element={
-            <div className="pt-24 min-h-screen bg-white dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-white dark:bg-gray-950">
               <SEO 
                 title="CGPA Analytics Studio & GPA Planner"
                 description="Multi-semester CGPA tracking, trajectory forecasting, and grade analytics for university and polytechnic students in Nigeria."
@@ -1414,7 +1423,7 @@ const AppContent: React.FC = () => {
           } />
 
           <Route path="/cgpa" element={
-            <div className="pt-24 min-h-screen bg-white dark:bg-gray-950">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-white dark:bg-gray-950">
               <SEO 
                 title="CGPA Analytics Studio & GPA Planner"
                 description="Multi-semester CGPA tracking, trajectory forecasting, and grade analytics for university and polytechnic students in Nigeria."
@@ -1517,7 +1526,7 @@ const AppContent: React.FC = () => {
               )}
 
               {currentPage === 'about' && (
-                <div className="pt-24">
+                <div className="pt-4 sm:pt-6 md:pt-8">
                   <AboutSection />
                 </div>
               )}
@@ -1627,7 +1636,7 @@ const AppContent: React.FC = () => {
           <Route path="/cookie-policy" element={<><SEO title="Cookie Policy" canonical="/cookies" /><LegalSection type="cookies" /></>} />
           
           <Route path="/about" element={
-            <div className="pt-24 min-h-screen">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen">
               <SEO 
                 title="About CampusAI.ng | Nigeria's Leading Admissions Intelligence Platform" 
                 description="Learn about CampusAI.ng, our mission to empower Nigerian students with accurate aggregate calculators, cut-off marks, and JAMB admission intelligence."
@@ -1637,7 +1646,7 @@ const AppContent: React.FC = () => {
             </div>
           } />
           <Route path="/about-us" element={
-            <div className="pt-24 min-h-screen">
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen">
               <SEO 
                 title="About CampusAI.ng | Nigeria's Leading Admissions Intelligence Platform" 
                 description="Learn about CampusAI.ng, our mission to empower Nigerian students with accurate aggregate calculators, cut-off marks, and JAMB admission intelligence."
