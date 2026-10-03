@@ -760,12 +760,13 @@ const BASELINE_RELEASES: Record<string, Partial<SchoolReleaseStatus>> = {
   },
   "Olusegun Agagu University of Science and Technology": {
     isOut: true,
-    statusText: "Registration Active",
-    details: "OAUSTECH Okitipupa 2025/2026 Post-UTME screening portal is active.",
-    portalLink: "https://oaustech.edu.ng",
-    cutoffScore: "150",
+    statusText: "Results Released (Health Sciences)",
+    details: "OAUSTECH 2026/2027 Post-UTME results released for School of Basic Medical, Health and Allied Sciences. Cut-offs: Nursing Science (69.00%), Medical Lab Science (50.00%), Public Health (49.00%).",
+    portalLink: "https://portal.oaustech.edu.ng/apply/",
+    cutoffScore: "150 (Health: 180-200)",
     registrationFee: 2000,
-    eligibilityText: "Candidates with 150+ score."
+    citationUrl: "https://www.oaustech.edu.ng/index.php/item/546-2026-2027-admissions-release-of-oaustech-post-utme-results-for-basic-health-and-allied-sciences.html",
+    eligibilityText: "General minimum UTME: 150. Health Sciences: Nursing (200+), MLS (200+), Public Health (180+). 5 O'Level credit passes in relevant subjects at ONE sitting."
   },
   "Abia State University": {
     isOut: true,

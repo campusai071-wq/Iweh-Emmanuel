@@ -8851,12 +8851,20 @@ ${isSurplus
                 </div>
                 <div className="flex items-center gap-3">
                   <a
+                    href="https://news.fuoye.edu.ng/fuoye-releases-2026-2027-admission-merit-points/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-green-400 hover:underline flex items-center gap-1 font-mono text-[8.5px]"
+                  >
+                    Official Merit Bulletin <ExternalLink size={10} />
+                  </a>
+                  <a
                     href="https://fuoye.edu.ng"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-green-400 hover:underline flex items-center gap-1"
+                    className="text-gray-400 hover:text-white hover:underline flex items-center gap-1 text-[8.5px]"
                   >
-                    FUOYE Official Portal <ExternalLink size={10} />
+                    Portal <ExternalLink size={10} />
                   </a>
                   <button
                     type="button"

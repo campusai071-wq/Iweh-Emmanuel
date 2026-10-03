@@ -12,6 +12,7 @@ export interface FuoyeCutoffProgramme {
 
 export const FUOYE_SESSION = "2026/2027";
 export const FUOYE_INSTITUTION_NAME = "Federal University Oye-Ekiti (FUOYE)";
+export const FUOYE_OFFICIAL_URL = "https://news.fuoye.edu.ng/fuoye-releases-2026-2027-admission-merit-points/";
 
 export const FUOYE_CUTOFFS_2026_2027: FuoyeCutoffProgramme[] = [
   // Agriculture

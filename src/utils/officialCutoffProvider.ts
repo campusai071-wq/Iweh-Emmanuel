@@ -10,6 +10,7 @@ import { FUTMINNA_CUTOFFS_2026_2027, FUTMINNA_SESSION, FUTMINNA_INSTITUTION_NAME
 import { getLAUTECHCutoffByCourse, LAUTECH_CUTOFFS_2025_2026 } from '../data/lautechCutoffs2025_2026';
 import { YABATECH_CUTOFFS_2026_2027, YABATECH_SESSION, YABATECH_INSTITUTION_NAME } from '../data/yabatechCutoffs2026_2027';
 import { EAUED_CUTOFFS_2026_2027, EAUED_SESSION, EAUED_INSTITUTION_NAME } from '../data/eauedCutoffs2026_2027';
+import { OAUSTECH_CUTOFFS_2026_2027, OAUSTECH_SESSION, OAUSTECH_INSTITUTION_NAME } from '../data/oaustechCutoffs2026_2027';
 
 export interface OfficialCutoffResult {
   institution: string;
@@ -211,7 +212,7 @@ export function getOfficialInstitutionCutoff(
         institutionalCutoff: "160",
         cutoffIsOfficial: true,
         cutoffType: 'official_departmental_cutoff',
-        cutoffSource: 'Official 2026-2027 Dataset (FUOYE Admissions Board Approved Merit Points)',
+        cutoffSource: 'FUOYE Official Bulletin (news.fuoye.edu.ng/fuoye-releases-2026-2027-admission-merit-points/)',
         cutoffYear: FUOYE_SESSION,
         cutoffQuotaUsed: 'National Merit Quota',
         isCatchment: false,
@@ -383,6 +384,34 @@ export function getOfficialInstitutionCutoff(
     }
   }
 
+  // 13. OAUSTECH (Olusegun Agagu University of Science and Technology, Okitipupa)
+  if (nUni.includes('oaustech') || nUni.includes('osustech') || nUni.includes('olusegunagagu') || (nUni.includes('okitipupa') && (nUni.includes('technology') || nUni.includes('science')))) {
+    let found = OAUSTECH_CUTOFFS_2026_2027.find(p => normalize(p.programme) === nCourse);
+    if (!found) {
+      found = OAUSTECH_CUTOFFS_2026_2027.find(p => {
+        const pNorm = normalize(p.programme);
+        return pNorm.includes(nCourse) || nCourse.includes(pNorm);
+      });
+    }
+    if (found) {
+      return {
+        institution: OAUSTECH_INSTITUTION_NAME,
+        course: found.programme,
+        cutoff: found.meritScore,
+        departmentalCutoff: `${found.meritScore.toFixed(2)}%`,
+        institutionalCutoff: `${found.minUtme}`,
+        cutoffIsOfficial: true,
+        cutoffType: 'official_departmental_cutoff',
+        cutoffSource: 'OAUSTECH Official Admissions Release (news.oaustech.edu.ng/item/546-2026-2027-admissions-release-of-oaustech-post-utme-results-for-basic-health-and-allied-sciences)',
+        cutoffYear: OAUSTECH_SESSION,
+        cutoffQuotaUsed: 'National Merit Quota',
+        isCatchment: false,
+        isELDS: false,
+        explanation: `Official OAUSTECH 2026/2027 Merit Cutoff for ${found.programme}: ${found.meritScore.toFixed(2)}% (Minimum UTME Score: ${found.minUtme})`
+      };
+    }
+  }
+
   return null;
 }
 
@@ -453,6 +482,11 @@ export function getOfficialInstitutionProgrammes(university: string): string[] |
   // 12. EAUED
   if (nUni.includes('eaued') || nUni.includes('emmanuel') || nUni.includes('alayande') || (nUni.includes('education') && nUni.includes('oyo'))) {
     return Array.from(new Set(EAUED_CUTOFFS_2026_2027.map(p => p.programme))).sort();
+  }
+
+  // 13. OAUSTECH
+  if (nUni.includes('oaustech') || nUni.includes('osustech') || nUni.includes('olusegunagagu') || (nUni.includes('okitipupa') && (nUni.includes('technology') || nUni.includes('science')))) {
+    return Array.from(new Set(OAUSTECH_CUTOFFS_2026_2027.map(p => p.programme))).sort();
   }
 
   return null;
