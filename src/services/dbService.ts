@@ -7,6 +7,7 @@ import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, setDoc, Ti
 import { handleFirestoreError, OperationType } from './firestoreUtils';
 import axios from 'axios';
 import { ADMIN_TOKEN } from '../lib/adminAuth';
+import { submitToIndexNow } from './indexNowService';
 
 const NEWS_KEY = 'campusai_published_news';
 
@@ -762,6 +763,12 @@ export const archiveNewsItems = async (items: NewsItem[], defaultLiveStatus: boo
     await batch.commit();
     console.log(`archiveNewsItems: Batch commit successful for ${validItems.length} items.`);
     clearNewsCache();
+
+    // Trigger server-side IndexNow instant indexing for newly archived articles
+    try {
+      const urlsToPing = validItems.map(item => `/news/${item.slug || slugify(item.title)}`);
+      submitToIndexNow(urlsToPing).catch(err => console.warn('[IndexNow] Background ping notice:', err));
+    } catch {}
   } catch (e) {
     console.error("News Archival Error (detailed):", e);
     throw e;
@@ -842,6 +849,11 @@ export const publishNewsUpdate = async (news: Omit<NewsItem, 'id'>) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('campusai_news_updated'));
   }
+
+  // Trigger server-side IndexNow instant indexing for published article
+  try {
+    submitToIndexNow([`/news/${slug}`]).catch(err => console.warn('[IndexNow] Publish ping notice:', err));
+  } catch {}
 
   return publishedId;
 };
