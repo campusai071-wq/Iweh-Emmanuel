@@ -139,13 +139,13 @@ const BASELINE_RELEASES: Record<string, Partial<SchoolReleaseStatus>> = {
   },
   "Osun State University": {
     isOut: true,
-    statusText: "Registration Active",
-    details: "UNIOSUN 2025/2026 Post-UTME screening application portal is active.",
+    statusText: "Cut-Off Marks Released",
+    details: "UNIOSUN 2026/2027 official General Merit and Osun Indigene Catchment cut-off marks released across all 107 programmes. Signed October 7, 2026.",
     portalLink: "https://admissions.uniosun.edu.ng/",
     cutoffScore: "160",
     registrationFee: 3000,
-    citationUrl: "https://myschoolgist.com/news/uniosun-post-utme/",
-    eligibilityText: "Candidates who chose the university as first choice and scored required minimum JAMB mark."
+    citationUrl: "https://campusai.com.ng/news/uniosun-20262027-cut-off-marks-official-general-merit-catchment-list",
+    eligibilityText: "Candidates who met the institutional cutoff (160) and respective departmental merit/catchment cutoffs."
   },
   "Olabisi Onabanjo University": {
     isOut: true,

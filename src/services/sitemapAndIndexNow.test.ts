@@ -212,4 +212,126 @@ describe('Sitemap & IndexNow SEO Engine', () => {
       expect(result.status).toBe(400);
     });
   });
+
+  describe('UNIOSUN 2026/2027 Official Cutoffs Provider', () => {
+    it('verifies all 107 programmes are accurately loaded', async () => {
+      const { UNIOSUN_CUTOFFS_2026_2027, getUNIOSUNCutoffForCandidate } = await import('../data/uniosunCutoffs2026_2027');
+      expect(UNIOSUN_CUTOFFS_2026_2027.length).toBe(107);
+
+      // Nursing Science (Merit: 77.4, Catchment: 74.4)
+      const nursingGeneral = getUNIOSUNCutoffForCandidate('Nursing', 'Lagos');
+      expect(nursingGeneral?.applicableCutoff).toBe(77.4);
+      expect(nursingGeneral?.isCatchment).toBe(false);
+
+      const nursingOsun = getUNIOSUNCutoffForCandidate('Nursing', 'Osun');
+      expect(nursingOsun?.applicableCutoff).toBe(74.4);
+      expect(nursingOsun?.isCatchment).toBe(true);
+
+      // Law (Merit: 77.1, Catchment: 73.0)
+      const lawGeneral = getUNIOSUNCutoffForCandidate('Law', 'Kwara');
+      expect(lawGeneral?.applicableCutoff).toBe(77.1);
+
+      const lawOsun = getUNIOSUNCutoffForCandidate('Bachelor of Law', 'Osun');
+      expect(lawOsun?.applicableCutoff).toBe(73.0);
+
+      // Radiography (Merit: 74.5, Catchment: 70.9)
+      const radGeneral = getUNIOSUNCutoffForCandidate('Radiography', 'Oyo');
+      expect(radGeneral?.applicableCutoff).toBe(74.5);
+
+      // Computer Science (Merit: 65.6, Catchment: 59.2)
+      const csGeneral = getUNIOSUNCutoffForCandidate('Computer Science', 'Delta');
+      expect(csGeneral?.applicableCutoff).toBe(65.6);
+      const csOsun = getUNIOSUNCutoffForCandidate('Computer Science', 'Osun');
+      expect(csOsun?.applicableCutoff).toBe(59.2);
+    });
+  });
+
+  describe('OAU 2026/2027 Faculty of Science Official Cutoffs Provider', () => {
+    it('verifies all 13 Faculty of Science programmes are accurately loaded', async () => {
+      const { OAU_SCIENCE_CUTOFFS_2026_2027, getOAUScienceCutoffForCandidate } = await import('../data/oauCutoffs2026_2027');
+      expect(OAU_SCIENCE_CUTOFFS_2026_2027.length).toBe(13);
+
+      // 1. Biochemistry (Merit: 50.93, Catchment: 50.93, ELDS: 50.93)
+      const biochemMerit = getOAUScienceCutoffForCandidate('Biochemistry', 'Kano');
+      expect(biochemMerit?.applicableCutoff).toBe(50.93);
+      expect(biochemMerit?.quotaType).toBe('elds');
+
+      const biochemOsun = getOAUScienceCutoffForCandidate('Biochemistry', 'Osun');
+      expect(biochemOsun?.applicableCutoff).toBe(50.93);
+      expect(biochemOsun?.quotaType).toBe('catchment');
+
+      // 2. Microbiology (Merit: 50.78, Catchment: 50.78, ELDS: 50.78)
+      const microGeneral = getOAUScienceCutoffForCandidate('Microbiology', 'Delta');
+      expect(microGeneral?.applicableCutoff).toBe(50.78);
+      expect(microGeneral?.quotaType).toBe('merit');
+
+      // 3. Science Laboratory Tech (Merit: 50.13)
+      const slt = getOAUScienceCutoffForCandidate('Science Laboratory Technology', 'Oyo');
+      expect(slt?.applicableCutoff).toBe(50.13);
+      expect(slt?.quotaType).toBe('catchment');
+
+      // 4. Standard 50.00% courses (Applied Geophysics, Botany, Chemistry, etc.)
+      const physics = getOAUScienceCutoffForCandidate('Physics', 'Lagos');
+      expect(physics?.applicableCutoff).toBe(50.00);
+
+      const geology = getOAUScienceCutoffForCandidate('Geology', 'Ekiti');
+      expect(geology?.applicableCutoff).toBe(50.00);
+    });
+
+    it('integrates seamlessly with the officialCutoffProvider for OAU', async () => {
+      const { getOfficialInstitutionCutoff } = await import('../utils/officialCutoffProvider');
+
+      // Biochemistry in OAU should return 2026/2027 session
+      const oauBiochem = getOfficialInstitutionCutoff('Obafemi Awolowo University', 'Biochemistry', 'Osun');
+      expect(oauBiochem?.cutoff).toBe(50.93);
+      expect(oauBiochem?.cutoffYear).toBe('2026/2027');
+      expect(oauBiochem?.cutoffSource).toContain('Faculty of Science Dean');
+
+      // Microbiology in OAU
+      const oauMicro = getOfficialInstitutionCutoff('OAU', 'Microbiology', 'Lagos');
+      expect(oauMicro?.cutoff).toBe(50.78);
+      expect(oauMicro?.cutoffYear).toBe('2026/2027');
+
+      // Mathematics in OAU
+      const oauMath = getOfficialInstitutionCutoff('OAU', 'Mathematics', 'Oyo');
+      expect(oauMath?.cutoff).toBe(50.00);
+      expect(oauMath?.cutoffYear).toBe('2026/2027');
+    });
+  });
+
+  describe('Sitemap XML Integrity & Well-formedness', () => {
+    it('verifies generated sitemap.xml and news-sitemap.xml are valid non-empty XML files', () => {
+      const sitemapPath = path.resolve(process.cwd(), 'public', 'sitemap.xml');
+      const newsSitemapPath = path.resolve(process.cwd(), 'public', 'news-sitemap.xml');
+
+      expect(fs.existsSync(sitemapPath)).toBe(true);
+      expect(fs.existsSync(newsSitemapPath)).toBe(true);
+
+      const sitemapContent = fs.readFileSync(sitemapPath, 'utf-8');
+      const newsSitemapContent = fs.readFileSync(newsSitemapPath, 'utf-8');
+
+      // XML declaration
+      expect(sitemapContent.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+      expect(newsSitemapContent.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+
+      // Root tags match
+      expect(sitemapContent.endsWith('</urlset>\n') || sitemapContent.endsWith('</urlset>')).toBe(true);
+      expect(newsSitemapContent.endsWith('</urlset>\n') || newsSitemapContent.endsWith('</urlset>')).toBe(true);
+
+      // Check that closing tags count matches opening tags
+      const openUrls = (sitemapContent.match(/<url>/g) || []).length;
+      const closeUrls = (sitemapContent.match(/<\/url>/g) || []).length;
+      expect(openUrls).toBeGreaterThan(100);
+      expect(openUrls).toBe(closeUrls);
+
+      const newsOpenUrls = (newsSitemapContent.match(/<url>/g) || []).length;
+      const newsCloseUrls = (newsSitemapContent.match(/<\/url>/g) || []).length;
+      expect(newsOpenUrls).toBeGreaterThan(10);
+      expect(newsOpenUrls).toBe(newsCloseUrls);
+
+      // Includes the latest breaking OAU Faculty of Science news
+      expect(sitemapContent).toContain('oau-releases-2026-2027-cut-off-marks-faculty-of-science');
+      expect(newsSitemapContent).toContain('oau-releases-2026-2027-cut-off-marks-faculty-of-science');
+    });
+  });
 });

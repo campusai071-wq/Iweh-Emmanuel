@@ -129,12 +129,12 @@ const BASELINE_POST_UTME: Record<string, Omit<PostUtmeSchoolRecord, 'schoolName'
   },
   "Osun State University": {
     status: 'OPEN',
-    statusText: 'Registration Active',
-    details: 'UNIOSUN 2025/2026 Post-UTME screening application portal is active.',
+    statusText: 'Cut-Off Marks Released',
+    details: 'UNIOSUN 2026/2027 official General Merit and Osun Indigene Catchment cut-off marks released across all 107 programmes.',
     portalLink: 'https://admissions.uniosun.edu.ng/',
     cutoffScore: '160',
     registrationFee: 3000,
-    requirements: 'Minimum JAMB score: 160.'
+    requirements: 'Minimum JAMB score: 160. Check respective departmental merit & catchment cut-offs.'
   },
   "Olabisi Onabanjo University": {
     status: 'CLOSED',

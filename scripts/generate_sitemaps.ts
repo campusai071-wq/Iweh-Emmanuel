@@ -179,7 +179,7 @@ export function buildGeneralSitemapXml(articles: any[]): string {
   // 2. Institutional Directory Pages
   const knownSlugs = new Set<string>([
     'unilag', 'oau', 'ui', 'lasu', 'uniben', 'unilorin', 'unn', 'futa', 'abu',
-    'fuoye', 'delsu', 'kwasu', 'aaua', 'yabatech', 'oou'
+    'fuoye', 'delsu', 'kwasu', 'aaua', 'yabatech', 'oou', 'uniosun'
   ]);
 
   if (UNIVERSITIES_DB && typeof UNIVERSITIES_DB === 'object') {

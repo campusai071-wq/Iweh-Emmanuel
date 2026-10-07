@@ -10,6 +10,175 @@ export const ADMISSION_DATES = {
 
 export const MOCK_NEWS: NewsItem[] = [
   {
+    id: 'uniosun-20262027-cut-off-marks-official-general-merit-catchment-list',
+    slug: 'uniosun-20262027-cut-off-marks-official-general-merit-catchment-list',
+    title: '🚨 UNIOSUN 2026/2027 Cut-Off Marks Released: Official General Merit & Catchment List for All 107 Programmes',
+    category: 'State',
+    date: 'October 07, 2026',
+    image: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=1000',
+    excerpt: 'The Directorate of Academic Affairs Admissions Office of Osun State University (UNIOSUN) has officially released the approved General Merit and Indigene/Catchment cut-off marks for all 107 undergraduate programmes for the 2026/2027 admission exercise.',
+    fullContent: `# Osun State University (UNIOSUN), Osogbo
+## DIRECTORATE OF ACADEMIC AFFAIRS — ADMISSIONS OFFICE
+### GENERAL MERIT AND INDIGENE/CATCHMENT CUT-OFF MARKS FOR ALL PROGRAMMES FOR THE 2026/2027 ADMISSION EXERCISE
+
+> **🏛️ OFFICIAL ADMISSIONS RELEASE:** Approved by the Vice-Chancellor and officially signed by **A.A. Adewuyi (Deputy Registrar)** on **October 7, 2026**.
+
+The management and Admissions Committee of **Osun State University (UNIOSUN)** have officially published the approved **General Merit** and **Indigene/Catchment Cut-Off Marks** for all 107 accredited undergraduate degree programmes for the **2026/2027 academic session**.
+
+---
+
+### 🌟 Key Highlights & High-Demand Programmes
+* **B.Sc. Nursing:** General Merit: **77.4%** | Osun Catchment: **74.4%**
+* **LLB (Bachelor of Law):** General Merit: **77.1%** | Osun Catchment: **73.0%**
+* **B.Sc. Radiography & Radiation Science:** General Merit: **74.5%** | Osun Catchment: **70.9%**
+* **B.MLS (Medical Laboratory Science):** General Merit: **73.8%** | Osun Catchment: **70.0%**
+* **Common & Islamic Law:** General Merit: **71.3%** | Osun Catchment: **66.5%**
+* **B.Sc. Accounting:** General Merit: **69.0%** | Osun Catchment: **61.0%**
+* **B.Sc. Mass Communication:** General Merit: **68.7%** | Osun Catchment: **63.4%**
+* **B.Sc. International Relations & Diplomacy:** General Merit: **68.0%** | Osun Catchment: **59.8%**
+* **B.Sc. Public Relations:** General Merit: **67.6%** | Osun Catchment: **60.8%**
+* **B.Eng. Mechatronics Engineering:** General Merit: **66.8%** | Osun Catchment: **58.9%**
+* **B.Sc. Criminology & Security Studies:** General Merit: **66.7%** | Osun Catchment: **59.4%**
+* **B.Sc. Software Engineering:** General Merit: **66.1%** | Osun Catchment: **59.8%**
+* **B.Sc. Computer Science:** General Merit: **65.6%** | Osun Catchment: **59.2%**
+* **B.Sc. Pharmacology:** General Merit: **65.7%** | Osun Catchment: **57.6%**
+* **B.Eng. Civil Engineering:** General Merit: **64.0%** | Osun Catchment: **57.7%**
+
+---
+
+### 📋 Full Programme-by-Programme Cut-Off Breakdown (All 107 Courses)
+
+| S/N | Programme / Course | General Merit Cut-Off (%) | Osun Indigene / Catchment (%) |
+| :---: | :--- | :---: | :---: |
+| 1 | **B. Agric. Economics** | 55.6 | 46.0 |
+| 2 | **B. Agric. Extension** | 53.6 | 41.0 |
+| 3 | **B. Agric. Forestry** | 50.0 | 40.0 |
+| 4 | **B. Agric. Agronomy** | 58.9 | 47.0 |
+| 5 | **B. Agric. Animal Science** | 56.8 | 45.0 |
+| 6 | **B. Agric. Fisheries and Aquaculture** | 51.9 | 40.0 |
+| 7 | **B. Agric. Wildlife Mgt.** | 49.8 | 40.0 |
+| 8 | **B.A. (Ed) English** | 58.8 | 48.0 |
+| 9 | **B.A. (Ed) Chemistry** | 53.9 | 45.0 |
+| 10 | **B.A. (Ed) Economics** | 55.4 | 45.0 |
+| 11 | **B.A. (Ed) Education Guidance and Counseling** | 60.6 | 45.0 |
+| 12 | **B.A. (Ed) Education Management** | 58.2 | 45.0 |
+| 13 | **B.Sc. (Ed) Mathematics** | 43.0 | 40.0 |
+| 14 | **B.Sc. (Ed) Political Science** | 58.6 | 50.0 |
+| 15 | **B.Sc. (Ed) Biology** | 56.4 | 45.0 |
+| 16 | **B.Sc. (Ed) Educational Technology** | 56.7 | 45.0 |
+| 17 | **B.Sc. (Ed) Physics** | 53.6 | 40.0 |
+| 18 | **B.Sc. (Ed) Computer Science** | 54.3 | 45.0 |
+| 19 | **B.Sc. (Ed) Business Education** | 58.4 | 45.0 |
+| 20 | **B.Sc. (Ed) Environmental Education** | 52.0 | 45.0 |
+| 21 | **B. Ed. Adult Education** | 54.7 | 40.0 |
+| 22 | **B. Sc. Anatomy** | 61.4 | 53.5 |
+| 23 | **B. Health Information Management** | 61.3 | 56.5 |
+| 24 | **B. Environmental Health Science** | 60.9 | 55.5 |
+| 25 | **B.Sc. Nursing** | 77.4 | 74.4 |
+| 26 | **B.Sc. Physiology** | 63.2 | 57.5 |
+| 27 | **B.Sc. Public Health** | 64.6 | 60.6 |
+| 28 | **B.MLS (Medical Laboratory Science)** | 73.8 | 70.0 |
+| 29 | **B.Sc. Nutrition and Dietetics** | 63.0 | 58.0 |
+| 30 | **B.Sc. Radiography and Radiation Science** | 74.5 | 70.9 |
+| 31 | **B.Sc. Pharmacology** | 65.7 | 57.6 |
+| 32 | **B.A. English & Intl. Studies** | 63.4 | 52.3 |
+| 33 | **B.A. French & Intl. Studies** | 63.6 | 45.0 |
+| 34 | **B.A. History & Intl. Studies** | 64.3 | 53.1 |
+| 35 | **B.A. Linguistics & Com. Art** | 64.1 | 47.0 |
+| 36 | **B.A. Philosophy** | 61.5 | 51.4 |
+| 37 | **B.A. Theatre Arts** | 62.7 | 56.0 |
+| 38 | **B.A. Tourism Studies** | 56.2 | 42.9 |
+| 39 | **B.A. Yoruba** | 53.2 | 40.0 |
+| 40 | **B.A. Arabic Language & Lit.** | 56.8 | 45.0 |
+| 41 | **B.A. Islamic Studies** | 58.1 | 40.0 |
+| 42 | **B.A. Christian Religion Studies** | 47.1 | 40.0 |
+| 43 | **B.Sc. Mass Communication** | 68.7 | 63.4 |
+| 44 | **B.Sc. Advertising** | 62.0 | 46.8 |
+| 45 | **B.Sc. Public Relations** | 67.6 | 60.8 |
+| 46 | **B.Sc. Broadcasting** | 65.4 | 55.6 |
+| 47 | **B.Sc. Journalism and Media Studies** | 64.5 | 59.6 |
+| 48 | **LLB (Bachelor of Law)** | 77.1 | 73.0 |
+| 49 | **Common & Islamic Law** | 71.3 | 66.5 |
+| 50 | **B.Sc. Criminology & Security Studies** | 66.7 | 59.4 |
+| 51 | **B.Sc. Peace & Conflict Studies** | 62.9 | 48.2 |
+| 52 | **B.Sc. Accounting** | 69.0 | 61.0 |
+| 53 | **B.Sc. Banking & Finance** | 64.2 | 55.5 |
+| 54 | **B.Sc. Marketing** | 61.7 | 55.4 |
+| 55 | **B.Sc. Geography** | 53.3 | 45.0 |
+| 56 | **B.Sc. Business Admin.** | 64.7 | 59.2 |
+| 57 | **B.Sc. Economics** | 65.0 | 55.6 |
+| 58 | **B.Sc. Entrepreneurial Studies** | 62.6 | 55.9 |
+| 59 | **B.Sc. Industrial Relations & Personnel Management** | 62.8 | 51.3 |
+| 60 | **B.Sc. Political Science** | 63.0 | 55.5 |
+| 61 | **B.Sc. Sociology** | 63.9 | 53.0 |
+| 62 | **B.Sc. International Relations & Diplomacy** | 68.0 | 59.8 |
+| 63 | **B.Sc. Cooperative & Rural Development** | 58.5 | 47.9 |
+| 64 | **B.Sc. Public Administration** | 61.1 | 51.0 |
+| 65 | **B.Sc. Psychology** | 61.8 | 53.8 |
+| 66 | **B.Sc. Demography & Social Statistics** | 58.1 | 44.8 |
+| 67 | **B.Sc. Social Work** | 61.2 | 44.0 |
+| 68 | **B.Sc. Development Studies** | 57.9 | 48.1 |
+| 69 | **B.Sc. Politics, Philosophy and Economics** | 57.5 | 48.0 |
+| 70 | **B.Sc. Local Government and Development Studies** | 57.5 | 43.6 |
+| 71 | **B.Sc. Social Standards** | 55.7 | 44.0 |
+| 72 | **B.Sc. Transport Management** | 50.3 | 40.0 |
+| 73 | **B.Eng. Agric. Engineering** | 57.2 | 45.5 |
+| 74 | **B.Eng. Chemical Engineering** | 61.7 | 56.9 |
+| 75 | **B.Sc. Building** | 59.1 | 51.9 |
+| 76 | **B.Sc. Estate Management** | 56.6 | 45.1 |
+| 77 | **B.Sc. Food Science & Tech.** | 60.3 | 53.1 |
+| 78 | **B.Sc. Statistics** | 57.3 | 48.2 |
+| 79 | **B.Eng. Civil Engineering** | 64.0 | 57.7 |
+| 80 | **B.Eng. Electrical/Electronics** | 63.0 | 55.1 |
+| 81 | **B.Eng. Mechanical Engineering** | 63.8 | 55.7 |
+| 82 | **B.Sc. Biochemistry** | 60.3 | 50.3 |
+| 83 | **B.Sc. Biotechnology** | 62.1 | 55.6 |
+| 84 | **B.Sc. Chemistry** | 59.0 | 49.8 |
+| 85 | **B.Sc. Computer Science** | 65.6 | 59.2 |
+| 86 | **B.Sc. Cybersecurity** | 63.8 | 58.5 |
+| 87 | **B.Sc. Geology** | 57.1 | 45.3 |
+| 88 | **B.Sc. Industrial Chemistry** | 61.4 | 54.2 |
+| 89 | **B.Sc. Information System** | 60.0 | 51.8 |
+| 90 | **B.Sc. Mathematics** | 54.7 | 48.6 |
+| 91 | **B.Sc. Microbiology** | 60.4 | 52.4 |
+| 92 | **B.Sc. Plant Biology** | 55.3 | 45.9 |
+| 93 | **B.Sc. Science Laboratory Technology** | 62.2 | 57.9 |
+| 94 | **B.Sc. Software Engineering** | 66.1 | 59.8 |
+| 95 | **B.Sc. Urban & Regional Planning** | 51.6 | 45.7 |
+| 96 | **B.Sc. Animal and Environmental Biology** | 58.1 | 50.3 |
+| 97 | **B.Sc. Physics with Electronics** | 58.5 | 48.5 |
+| 98 | **BLIS Library and Information Science** | 54.2 | 45.7 |
+| 99 | **Industrial Mathematics** | 54.1 | 46.3 |
+| 100 | **B.Sc. Quantity Survey** | 59.2 | 50.9 |
+| 101 | **B.Sc. Architecture** | 61.5 | 53.8 |
+| 102 | **B.Sc. Information Technology** | 62.4 | 57.5 |
+| 103 | **B.Sc. Brewing Science and Technology** | 55.7 | 43.8 |
+| 104 | **B.Sc. Family and Consumer Science** | 50.3 | 45.0 |
+| 105 | **B.Eng. Computer Engineering** | 63.4 | 58.3 |
+| 106 | **B.Eng. Mechatronics Engineering** | 66.8 | 58.9 |
+| 107 | **B.Sc. Data Science** | 61.5 | 56.9 |
+
+---
+
+### 📌 Crucial Notes for UNIOSUN 2026/2027 Candidates
+
+1. **General Merit vs. Osun Catchment Quota:**
+   - **General Merit Cut-Off:** Applies to all Nigerian applicants regardless of state of origin.
+   - **Catchment / Indigene Cut-Off:** Concessionary cut-off marks strictly reserved for candidates who are verified indigenes of **Osun State**.
+2. **Admission Status on JAMB CAPS:**
+   - Candidates who meet or exceed their respective departmental cut-off score should regularly check the **Central Admissions Processing System (JAMB CAPS)** at [caps.jamb.gov.ng](https://caps.jamb.gov.ng/).
+   - Ensure your O'Level WAEC/NECO/NABTEB results have been successfully uploaded to your JAMB profile at an accredited CBT Centre.
+3. **Change of Course Window:**
+   - Candidates who missed the cut-off for competitive courses (e.g. Nursing, Law, MLS, Pharmacy) are advised to consider available alternative programmes where their aggregate scores meet the threshold.
+
+---
+
+### 🔗 Useful Links for Candidates
+* **Official UNIOSUN Portal:** [admissions.uniosun.edu.ng](https://admissions.uniosun.edu.ng/)
+* **CampusAI Cutoff & Aggregate Engine:** [campusai.com.ng/calculator](https://campusai.com.ng/calculator)
+* **UNIOSUN Aggregate Calculator:** [campusai.com.ng/uniosun-aggregate-calculator](https://campusai.com.ng/uniosun-aggregate-calculator)`
+  },
+  {
     id: 'eaued-releases-2026-2027-second-batch-admission-cutoffs',
     slug: 'eaued-releases-2026-2027-second-batch-admission-cutoffs',
     title: 'Emmanuel Alayande University of Education (EAUED), Oyo Releases 2026/2027 Second Batch Admission Cut-Off Points',

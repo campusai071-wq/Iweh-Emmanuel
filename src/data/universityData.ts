@@ -305,6 +305,30 @@ export const UNIVERSITIES_DB: Record<string, UniversityData> = {
       "Architecture", "Building", "Estate Management", "Urban and Regional Planning", "Surveying and Geoinformatics",
       "Biochemistry", "Microbiology", "Pure and Applied Biology", "Pure and Applied Chemistry", "Pure and Applied Mathematics", "Pure and Applied Physics"
     ]
+  },
+  "Osun State University": {
+    name: "Osun State University",
+    founded: "2006",
+    motto: "Building a Model University",
+    bestKnownFor: "Nursing Science, Law, Health Sciences, Engineering, and Computing. Operates across 6 collegiate campuses in Osun State (Osogbo, Okuku, Ikire, Ejigbo, Ifetedo, Ipetu-Ijesha).",
+    campusVibe: "Collegiate, disciplined, and progressive with strict academic calendars.",
+    facultyStudentRatio: "1:28",
+    researchOutput: "High - Prominent in clinical health sciences, jurisprudence, infectious disease research, and renewable technology.",
+    facilities: ["Main Campus Osogbo Digital Centre", "UNIOSUN Teaching Hospital", "College of Law Library Ifetedo", "College of Health Sciences Complex", "College of Agriculture Research Farm Ejigbo"],
+    scoringSystem: {
+      hasJamb: true,
+      hasPostUtme: true,
+      hasOLevel: true,
+      explanation: "UNIOSUN admission screening combines UTME score (weighted at 50% or 60%) with O'Level grade evaluations across 5 core subjects and online screening aggregate. Merit and Osun State Catchment/Indigene quotas are strictly computed per programme."
+    },
+    courses: [
+      "Nursing", "Bachelor of Law", "Medical Laboratory Science", "Radiography and Radiation Science", "Pharmacology",
+      "Public Health", "Anatomy", "Physiology", "Mass Communication", "Public Relations", "Broadcasting",
+      "Accounting", "Economics", "Business Admin.", "Banking & Finance", "International Relations & Diplomacy",
+      "Civil Engineering", "Mechanical Engineering", "Electrical/Electronics", "Mechatronics Engineering",
+      "Computer Engineering", "Computer Science", "Software Engineering", "Cybersecurity", "Data Science",
+      "Biochemistry", "Microbiology", "Architecture", "Building", "Quantity Survey", "Agriculture"
+    ]
   }
 };
 

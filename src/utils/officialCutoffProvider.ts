@@ -2,6 +2,7 @@ import unilagCutoffs from '../data/unilagCutoffs.json';
 import { FUTA_CUTOFFS_2026_2027, getFUTACutoffForCandidate, FUTA_SESSION, FUTA_INSTITUTION_NAME } from '../data/futaCutoffs2026_2027';
 import { UI_CUTOFFS_2025_2026, getUICutoffByCourse, UI_SESSION, UI_INSTITUTION_NAME } from '../data/uiCutoffs2025_2026';
 import { OAU_CUTOFFS_2025_2026, getOAUCutoffForCandidate, OAU_SESSION, OAU_INSTITUTION_NAME } from '../data/oauCutoffs2025_2026';
+import { OAU_SCIENCE_CUTOFFS_2026_2027, getOAUScienceCutoffForCandidate, OAU_SESSION_2026_2027 } from '../data/oauCutoffs2026_2027';
 import { DELSU_CUTOFFS_2026_2027, DELSU_SESSION, DELSU_INSTITUTION_NAME } from '../data/delsuCutoffs2026_2027';
 import { FUHSI_CUTOFFS_2026_2027, FUHSI_SESSION, FUHSI_INSTITUTION_NAME } from '../data/fuhsiCutoffs2026_2027';
 import { FULOKOJA_CUTOFFS_2026_2027, FULOKOJA_SESSION, FULOKOJA_INSTITUTION_NAME } from '../data/fulokojaCutoffs2026_2027';
@@ -11,6 +12,7 @@ import { getLAUTECHCutoffByCourse, LAUTECH_CUTOFFS_2025_2026 } from '../data/lau
 import { YABATECH_CUTOFFS_2026_2027, YABATECH_SESSION, YABATECH_INSTITUTION_NAME } from '../data/yabatechCutoffs2026_2027';
 import { EAUED_CUTOFFS_2026_2027, EAUED_SESSION, EAUED_INSTITUTION_NAME } from '../data/eauedCutoffs2026_2027';
 import { OAUSTECH_CUTOFFS_2026_2027, OAUSTECH_SESSION, OAUSTECH_INSTITUTION_NAME } from '../data/oaustechCutoffs2026_2027';
+import { UNIOSUN_CUTOFFS_2026_2027, UNIOSUN_SESSION, UNIOSUN_INSTITUTION_NAME, getUNIOSUNCutoffForCandidate } from '../data/uniosunCutoffs2026_2027';
 
 export interface OfficialCutoffResult {
   institution: string;
@@ -146,6 +148,27 @@ export function getOfficialInstitutionCutoff(
 
   // 4. OBAFEMI AWOLOWO UNIVERSITY (OAU)
   if (nUni.includes('oau') || nUni.includes('obafemi') || nUni.includes('awolowo') || nUni.includes('ife')) {
+    // 1. Check verified 2026/2027 Faculty of Science Dean Stamped Circular
+    const scienceCandidate = getOAUScienceCutoffForCandidate(course, stateOfOrigin || "");
+    if (scienceCandidate) {
+      return {
+        institution: OAU_INSTITUTION_NAME,
+        course: scienceCandidate.programme.programme,
+        cutoff: scienceCandidate.applicableCutoff,
+        departmentalCutoff: `${scienceCandidate.applicableCutoff.toFixed(2)}%`,
+        institutionalCutoff: "200",
+        cutoffIsOfficial: true,
+        cutoffType: 'official_departmental_cutoff',
+        cutoffSource: 'Official 2026/2027 Release (OAU Faculty of Science Dean Stamped Circular — Prof. O. A. Adesina)',
+        cutoffYear: OAU_SESSION_2026_2027,
+        cutoffQuotaUsed: scienceCandidate.quotaLabel,
+        isCatchment: scienceCandidate.quotaType === 'catchment',
+        isELDS: scienceCandidate.quotaType === 'elds',
+        explanation: `Official OAU 2026/2027 Science Cutoff: Merit (${scienceCandidate.programme.merit.toFixed(2)}%), Catchment (${scienceCandidate.applicableCutoff.toFixed(2)}%), ELDS (${scienceCandidate.programme.elds.toFixed(2)}%)`
+      };
+    }
+
+    // 2. Fall back to institutional dean-stamped directory for other faculties
     const oauCandidate = getOAUCutoffForCandidate(course, stateOfOrigin || "");
     if (oauCandidate && oauCandidate.programme) {
       return {
@@ -412,6 +435,28 @@ export function getOfficialInstitutionCutoff(
     }
   }
 
+  // 14. UNIOSUN (Osun State University, Osogbo)
+  if (nUni.includes('uniosun') || (nUni.includes('osun') && (nUni.includes('state') || nUni.includes('university')))) {
+    const res = getUNIOSUNCutoffForCandidate(rawCourse, stateOfOrigin);
+    if (res) {
+      return {
+        institution: UNIOSUN_INSTITUTION_NAME,
+        course: res.item.programme,
+        cutoff: res.applicableCutoff,
+        departmentalCutoff: `${res.applicableCutoff}%`,
+        institutionalCutoff: "160",
+        cutoffIsOfficial: true,
+        cutoffType: 'official_departmental_cutoff',
+        cutoffSource: 'Official 2026/2027 Directorate of Academic Affairs Admissions Office Signed Release (A.A. Adewuyi, Deputy Registrar, 07/10/2026)',
+        cutoffYear: UNIOSUN_SESSION,
+        cutoffQuotaUsed: res.isCatchment ? 'Osun State Indigene / Catchment Quota' : 'National Merit Quota',
+        isCatchment: res.isCatchment,
+        isELDS: false,
+        explanation: `Official UNIOSUN 2026/2027 ${res.isCatchment ? 'Indigene / Catchment' : 'General Merit'} Cutoff for ${res.item.programme}: ${res.applicableCutoff}% (General Merit: ${res.item.generalCutoff}%, Catchment: ${res.item.catchmentCutoff}%)`
+      };
+    }
+  }
+
   return null;
 }
 
@@ -441,7 +486,11 @@ export function getOfficialInstitutionProgrammes(university: string): string[] |
 
   // 4. OAU
   if (nUni.includes('oau') || nUni.includes('awolowo') || nUni.includes('ife')) {
-    return Array.from(new Set(OAU_CUTOFFS_2025_2026.map(p => p.programme))).sort();
+    const allCourses = [
+      ...OAU_SCIENCE_CUTOFFS_2026_2027.map(p => p.programme),
+      ...OAU_CUTOFFS_2025_2026.map(p => p.programme)
+    ];
+    return Array.from(new Set(allCourses)).sort();
   }
 
   // 5. DELSU
@@ -487,6 +536,11 @@ export function getOfficialInstitutionProgrammes(university: string): string[] |
   // 13. OAUSTECH
   if (nUni.includes('oaustech') || nUni.includes('osustech') || nUni.includes('olusegunagagu') || (nUni.includes('okitipupa') && (nUni.includes('technology') || nUni.includes('science')))) {
     return Array.from(new Set(OAUSTECH_CUTOFFS_2026_2027.map(p => p.programme))).sort();
+  }
+
+  // 14. UNIOSUN
+  if (nUni.includes('uniosun') || (nUni.includes('osun') && (nUni.includes('state') || nUni.includes('university')))) {
+    return Array.from(new Set(UNIOSUN_CUTOFFS_2026_2027.map(p => p.programme))).sort();
   }
 
   return null;

@@ -6513,7 +6513,7 @@ function buildGeneralSitemap(articles: any[]): string {
   // 2. Institutional Directory Pages (/universities/:slug)
   const knownSlugs = new Set<string>([
     "unilag", "oau", "ui", "lasu", "uniben", "unilorin", "unn", "futa", "abu",
-    "fuoye", "delsu", "kwasu", "aaua", "yabatech", "oou"
+    "fuoye", "delsu", "kwasu", "aaua", "yabatech", "oou", "uniosun"
   ]);
 
   if (Array.isArray(universityData)) {

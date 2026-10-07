@@ -524,7 +524,7 @@ const getPostUtmeStatus = (schoolName: string): PostUtmeStatusInfo => {
   if (n.includes("uyo") || n.includes("uniuyo"))
     return closedOnline("UNIUYO 2025/2026 Post-UTME screening registration closed. Online O'Level screening (No exam written) processing.", "https://eportals.uniuyo.edu.ng/");
   if (n.includes("osun state") || n.includes("uniosun"))
-    return active("UNIOSUN 2025/2026 Post-UTME screening application portal active. Fee: ₦3,000.", "https://admissions.uniosun.edu.ng/");
+    return active("UNIOSUN 2026/2027 Official Departmental Cut-Off Marks Released for all 107 programmes! General Merit & Osun Indigene Catchment scores active.", "https://admissions.uniosun.edu.ng/");
   if (n.includes("olabisi onabanjo") || n.includes("oou"))
     return closedOnline("OOU 2025/2026 Post-UTME screening registration closed. Online point-based screening (No CBT exam) evaluation in progress.", "https://putme.oouagoiwoye.edu.ng/");
   if (n.includes("ekiti state") || n.includes("eksu"))
