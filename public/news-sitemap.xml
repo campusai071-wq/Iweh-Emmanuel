@@ -2,6 +2,72 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
   <url>
+    <loc>https://campusai.com.ng/news/national-universities-commission-approves-new-full-time-undergraduate-and-professional-programmes-for-2026</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title>National Universities Commission Approves New Full-Time Undergraduate and Professional Programmes for 2026</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-tightens-licensing-laws-toughens-standards-for-newly-approved-private-universities</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title>NUC Tightens Licensing Laws, Toughens Standards for Newly Approved Private Universities</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-directs-colleges-of-education-on-new-admission-guidelines-for-20262027-academic-session</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title>NUC Directs Colleges of Education on New Admission Guidelines for 2026/2027 Academic Session</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-greenlights-new-private-universities-focuses-on-standardizing-regional-educational-access</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title>NUC Greenlights New Private Universities, Focuses on Standardizing Regional Educational Access</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-approves-establishment-of-new-private-universities-for-the-20262027-session</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title>NUC Approves Establishment of New Private Universities for the 2026/2027 Session</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-recruitment-2026-application-requirements-portal-guide-and-selection-process</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title>NUC Recruitment 2026: Application Requirements, Portal Guide, and Selection Process</news:title>
+    </news:news>
+  </url>
+  <url>
     <loc>https://campusai.com.ng/news/national-universities-commission-nuc-recruitment-2026-official-vacancies-eligibility-and-application-guide</loc>
     <news:news>
       <news:publication>
@@ -123,72 +189,6 @@
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/national-universities-commission-approves-new-full-time-undergraduate-and-professional-programmes-for-2026</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>National Universities Commission Approves New Full-Time Undergraduate and Professional Programmes for 2026</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-tightens-licensing-laws-toughens-standards-for-newly-approved-private-universities</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Tightens Licensing Laws, Toughens Standards for Newly Approved Private Universities</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-directs-colleges-of-education-on-new-admission-guidelines-for-20262027-academic-session</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Directs Colleges of Education on New Admission Guidelines for 2026/2027 Academic Session</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-greenlights-new-private-universities-focuses-on-standardizing-regional-educational-access</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Greenlights New Private Universities, Focuses on Standardizing Regional Educational Access</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-approves-establishment-of-new-private-universities-for-the-20262027-session</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Approves Establishment of New Private Universities for the 2026/2027 Session</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-recruitment-2026-application-requirements-portal-guide-and-selection-process</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Recruitment 2026: Application Requirements, Portal Guide, and Selection Process</news:title>
-    </news:news>
-  </url>
-  <url>
     <loc>https://campusai.com.ng/news/jamb-issues-fresh-directives-on-e-facility-login-procedures-for-2026-de-and-utme-candidates</loc>
     <news:news>
       <news:publication>
@@ -252,6 +252,17 @@
       </news:publication>
       <news:publication_date>2026-10-07</news:publication_date>
       <news:title>OAUTHC College of Nursing 2026/27: ND/HND Application Closes 8 October</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/oau-releases-2026-2027-cut-off-marks-faculty-of-science</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-07</news:publication_date>
+      <news:title> OAU Releases 2026/2027 Cut-Off Marks for Faculty of Science: Official Merit, Catchment &amp; ELDS Breakdown</news:title>
     </news:news>
   </url>
   <url>
