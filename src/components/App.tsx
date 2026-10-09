@@ -1623,6 +1623,8 @@ const AppContent: React.FC = () => {
 
           <Route path="/fuoye-releases-2026-2027-admission-merit-points" element={<Navigate to="/news/fuoye-releases-2026-2027-admission-merit-points" replace />} />
           <Route path="/fuoye-releases-2026-2027-admission-merit-points/" element={<Navigate to="/news/fuoye-releases-2026-2027-admission-merit-points" replace />} />
+          <Route path="/20262027-obafemi-awolowo-university-oau-admission-cut-off-marks" element={<Navigate to="/news/20262027-obafemi-awolowo-university-oau-admission-cut-off-marks" replace />} />
+          <Route path="/20262027-obafemi-awolowo-university-oau-admission-cut-off-marks/" element={<Navigate to="/news/20262027-obafemi-awolowo-university-oau-admission-cut-off-marks" replace />} />
 
           <Route path="/jamb-caps" element={<JambCapsLiveTrackerPage />} />
           <Route path="/caps" element={<JambCapsLiveTrackerPage />} />

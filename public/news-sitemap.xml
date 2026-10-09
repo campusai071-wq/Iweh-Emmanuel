@@ -2,123 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
   <url>
-    <loc>https://campusai.com.ng/news/national-universities-commission-approves-new-full-time-undergraduate-and-professional-programmes-for-2026</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>National Universities Commission Approves New Full-Time Undergraduate and Professional Programmes for 2026</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-tightens-licensing-laws-toughens-standards-for-newly-approved-private-universities</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Tightens Licensing Laws, Toughens Standards for Newly Approved Private Universities</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-directs-colleges-of-education-on-new-admission-guidelines-for-20262027-academic-session</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Directs Colleges of Education on New Admission Guidelines for 2026/2027 Academic Session</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-greenlights-new-private-universities-focuses-on-standardizing-regional-educational-access</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Greenlights New Private Universities, Focuses on Standardizing Regional Educational Access</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-approves-establishment-of-new-private-universities-for-the-20262027-session</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Approves Establishment of New Private Universities for the 2026/2027 Session</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nuc-recruitment-2026-application-requirements-portal-guide-and-selection-process</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NUC Recruitment 2026: Application Requirements, Portal Guide, and Selection Process</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/national-universities-commission-nuc-recruitment-2026-official-vacancies-eligibility-and-application-guide</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>National Universities Commission (NUC) Recruitment 2026: Official Vacancies, Eligibility, and Application Guide</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/national-universities-commission-opens-2026-recruitment-portal-for-academic-and-administrative-positions</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>National Universities Commission Opens 2026 Recruitment Portal for Academic and Administrative Positions</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nysc-batch-b-2026-universities-begin-uploading-approved-senate-mobilization-lists</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>NYSC Batch B 2026: Universities Begin Uploading Approved Senate Mobilization Lists</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/nigerian-universities-begin-uploading-of-internal-senate-lists-for-2026-nysc-mobilization</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>Nigerian Universities Begin Uploading of Internal Senate Lists for 2026 NYSC Mobilization</news:title>
-    </news:news>
-  </url>
-  <url>
     <loc>https://campusai.com.ng/news/state-university-of-medical-and-applied-sciences-sumas-invites-applications-for-20262027-screening</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>State University of Medical and Applied Sciences (SUMAS) Invites Applications for 2026/2027 Screening</news:title>
     </news:news>
   </url>
@@ -129,7 +19,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>University of Port Harcourt (UNIPORT) Issues Age Requirement Policy and Data Capture Guidelines for 2026/2027 Admission</news:title>
     </news:news>
   </url>
@@ -140,7 +30,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>University of Port Harcourt (UNIPORT) Announces 2026/2027 Post-UTME Screening Exercise</news:title>
     </news:news>
   </url>
@@ -151,7 +41,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>University of Uyo Commences Sale of 2026/2027 Post-UTME and Direct Entry Screening Forms</news:title>
     </news:news>
   </url>
@@ -162,7 +52,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>University of Nigeria, Nsukka (UNN) Governing Council Approves 60% Increment on Sundry Charges</news:title>
     </news:news>
   </url>
@@ -173,7 +63,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>UNN Governing Council Approves Up to 60% Increment on Sundry Charges for Returning and New Students</news:title>
     </news:news>
   </url>
@@ -184,19 +74,118 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>University of Nigeria Nsukka Governing Council Approves 60 Percent Increment on Sundry Charges</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/jamb-issues-fresh-directives-on-e-facility-login-procedures-for-2026-de-and-utme-candidates</loc>
+    <loc>https://campusai.com.ng/news/national-universities-commission-approves-new-full-time-undergraduate-and-professional-programmes-for-2026</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>JAMB Issues Fresh Directives on E-facility Login Procedures for 2026 DE and UTME Candidates</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>National Universities Commission Approves New Full-Time Undergraduate and Professional Programmes for 2026</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-tightens-licensing-laws-toughens-standards-for-newly-approved-private-universities</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NUC Tightens Licensing Laws, Toughens Standards for Newly Approved Private Universities</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-directs-colleges-of-education-on-new-admission-guidelines-for-20262027-academic-session</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NUC Directs Colleges of Education on New Admission Guidelines for 2026/2027 Academic Session</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-greenlights-new-private-universities-focuses-on-standardizing-regional-educational-access</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NUC Greenlights New Private Universities, Focuses on Standardizing Regional Educational Access</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-approves-establishment-of-new-private-universities-for-the-20262027-session</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NUC Approves Establishment of New Private Universities for the 2026/2027 Session</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nuc-recruitment-2026-application-requirements-portal-guide-and-selection-process</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NUC Recruitment 2026: Application Requirements, Portal Guide, and Selection Process</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/national-universities-commission-nuc-recruitment-2026-official-vacancies-eligibility-and-application-guide</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>National Universities Commission (NUC) Recruitment 2026: Official Vacancies, Eligibility, and Application Guide</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/national-universities-commission-opens-2026-recruitment-portal-for-academic-and-administrative-positions</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>National Universities Commission Opens 2026 Recruitment Portal for Academic and Administrative Positions</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nysc-batch-b-2026-universities-begin-uploading-approved-senate-mobilization-lists</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NYSC Batch B 2026: Universities Begin Uploading Approved Senate Mobilization Lists</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/nigerian-universities-begin-uploading-of-internal-senate-lists-for-2026-nysc-mobilization</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>Nigerian Universities Begin Uploading of Internal Senate Lists for 2026 NYSC Mobilization</news:title>
     </news:news>
   </url>
   <url>
@@ -206,7 +195,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>Lagos State University (LASU) Activates Online Screening Portal for 2026/2027 Admission Cycle</news:title>
     </news:news>
   </url>
@@ -217,7 +206,7 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>Lagos State University (LASU) Opens Online Admission Screening Portal for 2026/2027 Session</news:title>
     </news:news>
   </url>
@@ -228,30 +217,85 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title>Lagos State University (LASU) Launches Online Admission Screening Portal for 2026/2027 Candidates</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/uniosun-20262027-departmental-aggregate-cut-off-marks-complete-list-for-all-107-programmes</loc>
+    <loc>https://campusai.com.ng/news/jamb-issues-fresh-directives-on-e-facility-login-procedures-for-2026-de-and-utme-candidates</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title> UNIOSUN 2026/2027 Departmental Aggregate Cut-Off Marks: Complete List for All 107 Programmes</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>JAMB Issues Fresh Directives on E-facility Login Procedures for 2026 DE and UTME Candidates</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/oauthc-college-of-nursing-202627-ndhnd-application-closes-8-october</loc>
+    <loc>https://campusai.com.ng/news/ebsu-20262027-post-utme-essential-application-procedures</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>OAUTHC College of Nursing 2026/27: ND/HND Application Closes 8 October</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>EBSU 2026/2027 Post-UTME: Essential Application Procedures</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/jamb-caps-mandatory-olevel-upload-requirements-for-2026</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>JAMB CAPS: Mandatory O&apos;Level Upload Requirements for 2026</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/asuu-industrial-action-negotiating-the-path-to-classroom-resumption</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>ASUU Industrial Action: Negotiating the Path to Classroom Resumption</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/modernizing-the-curriculum-nuc-approves-13-new-degree-programmes</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>Modernizing the Curriculum: NUC Approves 13 New Degree Programmes</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/20262027-admission-cycle-nuc-sets-november-30-deadline-for-portal-operations</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>2026/2027 Admission Cycle: NUC Sets November 30 Deadline for Portal Operations</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://campusai.com.ng/news/20262027-obafemi-awolowo-university-oau-admission-cut-off-marks</loc>
+    <news:news>
+      <news:publication>
+        <news:name>CampusAI</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>2026/2027 Obafemi Awolowo University (OAU) Admission Cut-Off Marks</news:title>
     </news:news>
   </url>
   <url>
@@ -261,206 +305,63 @@
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
+      <news:publication_date>2026-10-09</news:publication_date>
       <news:title> OAU Releases 2026/2027 Cut-Off Marks for Faculty of Science: Official Merit, Catchment &amp; ELDS Breakdown</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/uniosun-20262027-cut-off-marks-official-general-merit-catchment-list</loc>
+    <loc>https://campusai.com.ng/news/private-university-expansion-nuc-grants-provisional-licences</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title> UNIOSUN 2026/2027 Cut-Off Marks Released: Official General Merit &amp; Catchment List for All 107 Programmes</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>Private University Expansion: NUC Grants Provisional Licences</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/campusai-morning-briefing-wednesday-october-7-2026-fugashua-deadline-today-futo-tomorrow-nsuk-extension-more</loc>
+    <loc>https://campusai.com.ng/news/understanding-jamb-caps-a-guide-for-the-20262027-admission-cycle</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>CampusAI Morning Briefing — Wednesday, October 7, 2026: FUGASHUA Deadline Today, FUTO Tomorrow, NSUK Extension &amp; More</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>Understanding JAMB CAPS: A Guide for the 2026/2027 Admission Cycle</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/unilag-20262027-post-utme-registration-official-deadlines-fees-and-procedures</loc>
+    <loc>https://campusai.com.ng/news/asuu-industrial-action-implications-for-20262027-session</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-07</news:publication_date>
-      <news:title>UNILAG 2026/2027 Post-UTME Registration: Official Deadlines, Fees, and Procedures</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>ASUU Industrial Action: Implications for 2026/2027 Session</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/kiu-20262027-first-batch-admission-list-how-to-check-registration-requirements</loc>
+    <loc>https://campusai.com.ng/news/nuc-expands-higher-education-13-new-programmes-approved</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> KIU 2026/2027 First Batch Admission List: How to Check &amp; Registration Requirements</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>NUC Expands Higher Education: 13 New Programmes Approved</news:title>
     </news:news>
   </url>
   <url>
-    <loc>https://campusai.com.ng/news/futo-20262027-supplementary-post-utme-requirements-cut-off-fee-deadline</loc>
+    <loc>https://campusai.com.ng/news/20262027-post-utme-screening-guidelines-essential-updates-for-candidates</loc>
     <news:news>
       <news:publication>
         <news:name>CampusAI</news:name>
         <news:language>en</news:language>
       </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> FUTO 2026/2027 Supplementary Post-UTME: Requirements, Cut-Off, Fee &amp; Deadline</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/naub-20262027-academic-calendar-resumption-registration-matriculation-examination-dates</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> NAUB 2026/2027 Academic Calendar: Resumption, Registration, Matriculation &amp; Examination Dates</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/oaustech-20262027-post-utme-results-cut-off-marks-for-nursing-mls-public-health</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title>OAUSTECH 2026/2027 Post-UTME Results: Cut-Off Marks for Nursing, MLS &amp; Public Health</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/fumhsf-post-utme-20262027-cut-off-marks-requirements-fee-october-21-deadline</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> FUMHSF Post-UTME 2026/2027: Cut-Off Marks, Requirements, Fee &amp; October 21 Deadline</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/fulokoja-20262027-admission-caps-timeline-how-to-check-admission-what-candidates-should-do</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> FULOKOJA 2026/2027 Admission: CAPS Timeline, How to Check Admission &amp; What Candidates Should Do</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/fugashua-post-utme-20262027-requirements-deadline-eligibility-how-to-apply</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> FUGASHUA Post-UTME 2026/2027: Requirements, Deadline, Eligibility &amp; How to Apply</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/ae-funai-supplementary-admission-202627-official-portal-lists-12-october-deadline</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title>AE-FUNAI Supplementary Admission 2026/27: Official Portal Lists 12 October Deadline</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/fuoye-20262027-admission-merit-points-complete-programme-by-programme-guide</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> FUOYE 2026/2027 Admission Merit Points: Complete Programme-by-Programme Guide</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/unilag-20262027-cut-off-marks-complete-departmental-merit-catchment-list</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> UNILAG 2026/2027 Cut-Off Marks: Complete Departmental Merit &amp; Catchment List</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/neco-2026-ssce-external-registration-deadline-late-registration-exam-date</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> NECO 2026 SSCE External Registration: Deadline, Late Registration &amp; Exam Date</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/fulokoja-2026-2027-admission-update-check-jamb-caps-now</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title>Investigative Report: Status of FULOKOJA 2026/2027 Admission and JAMB CAPS Procedures</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/fulokoja-20262027-admission-update-check-jamb-caps-now</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title>FULOKOJA 2026/2027 Admission Update: Check JAMB CAPS Now</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/campusai-morning-briefing-tuesday-october-6-2026-fuhsi-deadline-today-fugashua-tomorrow-fulokoja-caps-more</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-06</news:publication_date>
-      <news:title> CampusAI Morning Briefing — Tuesday, October 6, 2026: FUHSI Deadline Today, FUGASHUA Tomorrow, FULOKOJA CAPS &amp; More</news:title>
-    </news:news>
-  </url>
-  <url>
-    <loc>https://campusai.com.ng/news/jamb-plans-utme-centre-in-ottawa-canada-for-2027</loc>
-    <news:news>
-      <news:publication>
-        <news:name>CampusAI</news:name>
-        <news:language>en</news:language>
-      </news:publication>
-      <news:publication_date>2026-10-05</news:publication_date>
-      <news:title>JAMB Plans UTME Centre in Ottawa, Canada for 2027</news:title>
+      <news:publication_date>2026-10-09</news:publication_date>
+      <news:title>2026/2027 Post-UTME Screening Guidelines: Essential Updates for Candidates</news:title>
     </news:news>
   </url>
 </urlset>

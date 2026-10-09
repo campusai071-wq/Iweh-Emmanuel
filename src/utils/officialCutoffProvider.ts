@@ -1,8 +1,7 @@
 import unilagCutoffs from '../data/unilagCutoffs.json';
 import { FUTA_CUTOFFS_2026_2027, getFUTACutoffForCandidate, FUTA_SESSION, FUTA_INSTITUTION_NAME } from '../data/futaCutoffs2026_2027';
 import { UI_CUTOFFS_2025_2026, getUICutoffByCourse, UI_SESSION, UI_INSTITUTION_NAME } from '../data/uiCutoffs2025_2026';
-import { OAU_CUTOFFS_2025_2026, getOAUCutoffForCandidate, OAU_SESSION, OAU_INSTITUTION_NAME } from '../data/oauCutoffs2025_2026';
-import { OAU_SCIENCE_CUTOFFS_2026_2027, getOAUScienceCutoffForCandidate, OAU_SESSION_2026_2027 } from '../data/oauCutoffs2026_2027';
+import { OAU_CUTOFFS_2026_2027, getOAUCutoffForCandidate2026, OAU_SESSION, OAU_INSTITUTION_NAME } from '../data/oauCutoffs2026_2027';
 import { DELSU_CUTOFFS_2026_2027, DELSU_SESSION, DELSU_INSTITUTION_NAME } from '../data/delsuCutoffs2026_2027';
 import { FUHSI_CUTOFFS_2026_2027, FUHSI_SESSION, FUHSI_INSTITUTION_NAME } from '../data/fuhsiCutoffs2026_2027';
 import { FULOKOJA_CUTOFFS_2026_2027, FULOKOJA_SESSION, FULOKOJA_INSTITUTION_NAME } from '../data/fulokojaCutoffs2026_2027';
@@ -152,43 +151,37 @@ export function getOfficialInstitutionCutoff(
 
   // 4. OBAFEMI AWOLOWO UNIVERSITY (OAU)
   if (nUni.includes('oau') || nUni.includes('obafemi') || nUni.includes('awolowo') || nUni.includes('ife')) {
-    // 1. Check verified 2026/2027 Faculty of Science Dean Stamped Circular
-    const scienceCandidate = getOAUScienceCutoffForCandidate(course, stateOfOrigin || "");
-    if (scienceCandidate) {
-      return {
-        institution: OAU_INSTITUTION_NAME,
-        course: scienceCandidate.programme.programme,
-        cutoff: scienceCandidate.applicableCutoff,
-        departmentalCutoff: `${scienceCandidate.applicableCutoff.toFixed(2)}%`,
-        institutionalCutoff: "200",
-        cutoffIsOfficial: true,
-        cutoffType: 'official_departmental_cutoff',
-        cutoffSource: 'Official 2026/2027 Release (OAU Faculty of Science Dean Stamped Circular — Prof. O. A. Adesina)',
-        cutoffYear: OAU_SESSION_2026_2027,
-        cutoffQuotaUsed: scienceCandidate.quotaLabel,
-        isCatchment: scienceCandidate.quotaType === 'catchment',
-        isELDS: scienceCandidate.quotaType === 'elds',
-        explanation: `Official OAU 2026/2027 Science Cutoff: Merit (${scienceCandidate.programme.merit.toFixed(2)}%), Catchment (${scienceCandidate.applicableCutoff.toFixed(2)}%), ELDS (${scienceCandidate.programme.elds.toFixed(2)}%)`
-      };
-    }
-
-    // 2. Fall back to institutional dean-stamped directory for other faculties
-    const oauCandidate = getOAUCutoffForCandidate(course, stateOfOrigin || "");
+    const oauCandidate = getOAUCutoffForCandidate2026(course, stateOfOrigin || "");
     if (oauCandidate && oauCandidate.programme) {
+      const progCutoff = oauCandidate.cutoff;
+      const progMerit = oauCandidate.programme.merit;
+      let eldsVal: number = 50.00;
+      if (typeof oauCandidate.programme.elds === 'number') {
+        eldsVal = oauCandidate.programme.elds;
+      } else if (typeof oauCandidate.programme.elds === 'object') {
+        const sClean = (stateOfOrigin || '').toLowerCase().replace(/[^a-z]/g, '');
+        eldsVal = (oauCandidate.programme.elds as any)[sClean] ?? (oauCandidate.programme.elds as any).default ?? 50.00;
+      }
+      const formattedCutoff = typeof progCutoff === 'number'
+        ? (Number.isInteger(progCutoff) ? `${progCutoff}%` : `${progCutoff}%`)
+        : `${progCutoff}%`;
+
       return {
         institution: OAU_INSTITUTION_NAME,
         course: oauCandidate.programme.programme,
-        cutoff: oauCandidate.cutoff,
-        departmentalCutoff: `${oauCandidate.cutoff}%`,
+        cutoff: progCutoff,
+        departmentalCutoff: formattedCutoff,
         institutionalCutoff: "200",
         cutoffIsOfficial: true,
         cutoffType: 'official_departmental_cutoff',
-        cutoffSource: 'Official 2025-2026 Dataset (OAU Faculty Dean Stamped Publication)',
+        cutoffSource: oauCandidate.isScienceCircular
+          ? 'Official 2026/2027 Release (OAU Faculty of Science Dean Stamped Circular — Prof. O. A. Adesina)'
+          : 'Official 2026/2027 Approved Departmental Cut-off Marks (OAU Central Admissions Committee & Dean Releases)',
         cutoffYear: OAU_SESSION,
         cutoffQuotaUsed: oauCandidate.quotaLabel,
         isCatchment: oauCandidate.quotaType === 'catchment',
         isELDS: oauCandidate.quotaType === 'elds',
-        explanation: `Official OAU 2025/2026 Cutoff: Merit (${oauCandidate.programme.merit}%), Catchment for ${stateOfOrigin || 'State'} (${oauCandidate.cutoff}%)`
+        explanation: `Official OAU 2026/2027 Cutoff: Merit (${progMerit}%), Catchment for ${stateOfOrigin || 'General'} (${progCutoff}%), ELDS (${eldsVal}%)`
       };
     }
   }
@@ -514,11 +507,7 @@ export function getOfficialInstitutionProgrammes(university: string): string[] |
 
   // 4. OAU
   if (nUni.includes('oau') || nUni.includes('awolowo') || nUni.includes('ife')) {
-    const allCourses = [
-      ...OAU_SCIENCE_CUTOFFS_2026_2027.map(p => p.programme),
-      ...OAU_CUTOFFS_2025_2026.map(p => p.programme)
-    ];
-    return Array.from(new Set(allCourses)).sort();
+    return Array.from(new Set(OAU_CUTOFFS_2026_2027.map(p => p.programme))).sort();
   }
 
   // 5. DELSU

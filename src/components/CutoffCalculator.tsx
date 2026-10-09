@@ -36,7 +36,7 @@ import { YABATECH_CUTOFFS_2026_2027, getYabatechCutoffByCourse, YABATECH_SESSION
 import { FUOYE_CUTOFFS_2026_2027, getFuoyeCutoffByCourse, FUOYE_SESSION, FUOYE_INSTITUTION_NAME } from '../data/fuoyeCutoffs2026_2027';
 import { FULOKOJA_CUTOFFS_2026_2027, getFulokojaFaculties, getFulokojaCutoffByCourse, FULOKOJA_SESSION, FULOKOJA_INSTITUTION_NAME, FULOKOJA_APPROVAL_DATE } from '../data/fulokojaCutoffs2026_2027';
 import { DELSU_CUTOFFS_2026_2027, getDelsuFaculties, getDelsuCutoffByCourse, DELSU_SESSION, DELSU_INSTITUTION_NAME, DELSU_PORTAL_URL } from '../data/delsuCutoffs2026_2027';
-import { OAU_CUTOFFS_2025_2026, getOAUFaculties, OAU_SESSION, OAU_INSTITUTION_NAME, getOAUCutoffForCandidate } from '../data/oauCutoffs2025_2026';
+import { OAU_CUTOFFS_2026_2027 as OAU_CUTOFFS_2025_2026, getOAUFaculties2026 as getOAUFaculties, OAU_SESSION, OAU_INSTITUTION_NAME, getOAUCutoffForCandidate2026 as getOAUCutoffForCandidate } from '../data/oauCutoffs2026_2027';
 import { getOfficialInstitutionCutoff, getOfficialInstitutionProgrammes } from '../utils/officialCutoffProvider';
 import { findBestCourseMatch, isCourseFuzzyMatch } from '../utils/courseMatcher';
 import { getVerifiedCoursesForCalculator } from '../services/jambInstitutionService';
@@ -654,15 +654,15 @@ const SCHOOL_LANDING_DATA: Record<string, LandingData> = {
       { course: "Medicine and Surgery", score: "82.475 (Merit)" },
       { course: "Nursing Science", score: "77.354 (Merit)" },
       { course: "Law", score: "76.075 (Merit)" },
-      { course: "Dentistry", score: "73.725 (Merit)" },
       { course: "Pharmacy", score: "73.475 (Merit)" },
-      { course: "Computer Science with Mathematics", score: "67.73 (Merit) | 62.00 (Oyo)" },
-      { course: "Software Engineering", score: "66.77 (Merit) | 61.02 (Oyo)" },
-      { course: "Computer Engineering", score: "66.25 (Merit) | 56.65 (Oyo)" },
-      { course: "Accounting", score: "69.600 (Merit) | 65.80 (Oyo)" },
-      { course: "Economics", score: "62.73 (Merit) | 57.75 (Oyo)" },
-      { course: "Architecture", score: "70.575 (Merit) | 67.48 (Oyo)" },
-      { course: "Mechanical Engineering", score: "69.325 (Merit) | 64.53 (Oyo)" }
+      { course: "Dentistry", score: "73.725 (Merit)" },
+      { course: "Biochemistry", score: "50.93 (2026 Official)" },
+      { course: "Microbiology", score: "50.78 (2026 Official)" },
+      { course: "Computer Science with Mathematics", score: "67.73 (Merit) | 61.65 (Osun)" },
+      { course: "Computer Engineering", score: "66.25 (Merit) | 56.65 (Osun)" },
+      { course: "Accounting", score: "69.875 (Merit) | 66.85 (Osun)" },
+      { course: "Mechanical Engineering", score: "69.325 (Merit) | 66.95 (Osun)" },
+      { course: "Materials Science (Metallurgical)", score: "52.900 (Merit) | 50.00 (Catchment)" }
     ],
     postUtmeGuide: {
       format: "Computer-Based Test (CBT)",
@@ -1436,7 +1436,7 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
         enrichedResult = officialResultPayload;
         setAiResult(enrichedResult);
       } else {
-        setAiResult(null);
+        setAiResult(officialResultPayload);
       }
     }
 
@@ -2982,16 +2982,16 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
         setAiResult(null);
       }
 
-      // Deterministically enforce official stamped cutoffs for authenticated users only
+      // Deterministically enforce official stamped cutoffs
       const officialCutoffMatch = getOfficialInstitutionCutoff(targetUni?.name || activeUni.name, activeCourse, stateOfOrigin);
-      if (officialCutoffMatch && user) {
+      if (officialCutoffMatch) {
         const officialCutoff = officialCutoffMatch.cutoff;
         const diff = parseFloat((aggregateScore - officialCutoff).toFixed(2));
         const baseProb = diff >= 6 ? 96 : diff >= 3 ? 90 : diff >= 0 ? 82 : diff >= -2 ? 65 : diff >= -5 ? 45 : 20;
         const verdict = diff >= 0 ? "Strong / Above Cut-off" : (diff >= -2.5 ? "Borderline / Competitive Catchment" : "Below Cut-off Line");
 
         const isSurplus = diff >= 0;
-        const detailedStrategyMarkdown = `### 1. Verdict Summary
+        const detailedStrategyMarkdown = user ? `### 1. Verdict Summary
 - **Verdict Status:** **${verdict}**
 - **Admission Probability:** **${baseProb}%** (${isSurplus ? `Surplus of +${diff}% above departmental benchmark` : `${Math.abs(diff)}% deficit vs departmental benchmark`})
 
@@ -3007,7 +3007,7 @@ ${isSurplus
 ### 3. Actionable Next Steps
 *   **Monitor Official Portals:** Check your JAMB CAPS portal and the university's official admission screening portal daily for status updates ('Admission in Progress' or 'Approved').
 *   **Verify O'Level Uploads:** Ensure your WAEC/NECO results are correctly uploaded and verified on JAMB CAPS to prevent automatic system disqualification.
-*   **Prepare Backup Options:** If your score is close or slightly below the cutoff, keep a change of course or related department backup ready in case departmental quotas fill up rapidly.`;
+*   **Prepare Backup Options:** If your score is close or slightly below the cutoff, keep a change of course or related department backup ready in case departmental quotas fill up rapidly.` : '';
 
         const officialResultPayload = {
           departmentalCutoff: officialCutoffMatch.departmentalCutoff,
@@ -3520,7 +3520,7 @@ ${isSurplus
                           onClick={() => setIsOAUCutoffsModalOpen(true)}
                           className="px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 self-start sm:self-auto shrink-0 cursor-pointer"
                         >
-                          <BookOpen size={11} /> View Official OAU 2025/2026 Stamped Cut-Off Marks (Merit, Catchment & ELDS)
+                          <BookOpen size={11} /> View Official OAU 2026/2027 Stamped Cut-Off Marks (Merit, Catchment & ELDS)
                         </button>
                       )}
                     </div>
@@ -3968,11 +3968,17 @@ ${isSurplus
                     }}
                     onFocus={() => setIsCourseDropdownOpen(true)}
                     onBlur={() => {
-                      if (courseSearch.trim() && availableCourses.length > 0) {
-                        const best = findBestCourseMatch(courseSearch, availableCourses);
-                        if (best) {
-                          setTargetCourse(best);
-                          setCourseSearch(best);
+                      if (courseSearch.trim()) {
+                        if (availableCourses.length > 0) {
+                          const best = findBestCourseMatch(courseSearch, availableCourses);
+                          if (best) {
+                            setTargetCourse(best);
+                            setCourseSearch(best);
+                          } else {
+                            setTargetCourse(courseSearch.trim());
+                          }
+                        } else {
+                          setTargetCourse(courseSearch.trim());
                         }
                       }
                       setTimeout(() => setIsCourseDropdownOpen(false), 200);
@@ -3980,11 +3986,17 @@ ${isSurplus
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        if (courseSearch.trim() && availableCourses.length > 0) {
-                          const best = findBestCourseMatch(courseSearch, availableCourses);
-                          if (best) {
-                            setTargetCourse(best);
-                            setCourseSearch(best);
+                        if (courseSearch.trim()) {
+                          if (availableCourses.length > 0) {
+                            const best = findBestCourseMatch(courseSearch, availableCourses);
+                            if (best) {
+                              setTargetCourse(best);
+                              setCourseSearch(best);
+                            } else {
+                              setTargetCourse(courseSearch.trim());
+                            }
+                          } else {
+                            setTargetCourse(courseSearch.trim());
                           }
                         }
                         setIsCourseDropdownOpen(false);
@@ -9445,6 +9457,12 @@ ${isSurplus
                   <span>Obafemi Awolowo University (OAU) {OAU_SESSION} Official Approved Departmental Cut-Offs (50:40:10 Model)</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <a
+                    href="/news/20262027-obafemi-awolowo-university-oau-admission-cut-off-marks"
+                    className="text-cyan-400 hover:underline flex items-center gap-1 font-black"
+                  >
+                    Read Full 2026/2027 Bulletin <ExternalLink size={10} />
+                  </a>
                   <a
                     href="https://admissions.oauife.edu.ng"
                     target="_blank"

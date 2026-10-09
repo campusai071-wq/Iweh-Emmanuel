@@ -35,9 +35,24 @@ export const UNIVERSITIES_DB: Record<string, UniversityData> = {
       explanation: "UNILAG uses a 50:30:20 ratio. 50% from JAMB, 30% from Post-UTME, and 20% from O-Level results (5 subjects)."
     },
     courses: [
-      "Accounting", "Actuarial Science", "Architecture", "Business Administration", 
-      "Civil Engineering", "Computer Science", "Economics", "Law", "Medicine and Surgery",
-      "Mechanical Engineering", "Pharmacy", "Psychology", "Systems Engineering"
+      "Accounting", "Actuarial Science", "Adult Education", "Anatomy", "Architecture", 
+      "Artificial Intelligence", "Banking & Finance", "Biochemistry", "Biomedical Engineering", 
+      "Biostatistics", "Botany", "Broadcasting", "Building", "Business Admin.", 
+      "Cell Biology & Genetics", "Chemical Engineering", "Chemistry", "Civil Engineering", 
+      "Computer Engineering", "Computer Science", "Cybersecurity", "Data Science", 
+      "Dentistry", "Economics", "Economics & Development Studies", "Education Biology", 
+      "Education Business", "Education Chemistry", "Education Early Childhood", "Education Economics", 
+      "Education English", "Education Mathematics", "Education Physics", "Electrical Engineering", 
+      "English", "Estate Management", "Finance", "Fisheries", "French", "Geography", "Geology", 
+      "Geophysics", "History & Strategic Studies", "Industrial Chemistry", "Industrial Mathematics", 
+      "Insurance", "Law", "Marine Science", "Mass Communication", "Mathematics", 
+      "Mechanical Engineering", "Medical & Laboratory Science", "Medicine & Surgery", 
+      "Metallurgical & Material Engineering", "Microbiology", "Nursing Sciences", 
+      "Petroleum & Gas Engineering", "Pharmacology", "Pharmacy", "Philosophy", "Physics", 
+      "Physiology", "Physiotherapy", "Political Science", "Psychology", "Public Administration", 
+      "Public Relations", "Quantity Surveying", "Radiography", "Social Work", "Sociology", 
+      "Software Engineering", "Surveying & Geoformatics Engineering", "Systems Engineering", 
+      "Theatre Arts", "Urban & Regional Planning", "Zoology"
     ]
   },
   "University of Ibadan": {
@@ -84,11 +99,39 @@ export const UNIVERSITIES_DB: Record<string, UniversityData> = {
       hasJamb: true,
       hasPostUtme: true,
       hasOLevel: true,
-      explanation: "OAU uses a 50:10:40 formula: Weighted JAMB (50%), CBT Screening (10%) and O'Level points (40%)."
+      explanation: "OAU uses the 50:40:10 model: UTME Score 50%, Post-UTME CBT Screening 40%, and O'Level results 10% (5 core subjects)."
     },
     courses: [
-      "Architecture", "Chemical Engineering", "Computer Science and Engineering", "Demography and Social Statistics",
-      "International Relations", "Law", "Medicine and Surgery", "Music", "Philosophy", "Quantity Surveying"
+      "Accounting", "Adult Education", "Aerospace Engineering", "Agricultural & Environmental Engineering",
+      "Agricultural and Environmental Engineering", "Agricultural Economics", "Agricultural Extension",
+      "Animal Sciences", "Applied Geophysics", "Architecture", "Biochemistry", "Botany",
+      "Broadcast Journalism", "Building", "Business Administration", "Chemical Engineering",
+      "Chemistry", "Civil Engineering", "Computer Education", "Computer Engineering",
+      "Computer Science with Economics", "Computer Science with Mathematics", "Computer with Economics",
+      "Computer with Mathematics", "Consumer Sciences", "Crop Production", "Cybersecurity",
+      "Demography and Social Statistics", "Dentistry", "Drama", "Dramatic Arts", "Early Childhood and Primary Education",
+      "Economics", "Education Agricultural Science", "Education Biology", "Education Chemistry",
+      "Education Economics", "Education English", "Education Fine Arts", "Education French",
+      "Education Geography", "Education History", "Education Home Economics", "Education Mathematics",
+      "Education Music", "Education Physics", "Education Political Science", "Education Religious Studies",
+      "Education Yoruba", "Educational Management", "Educational Technology", "Electrical and Electronic Engineering",
+      "Electronic & Electrical Engineering", "Engineering Physics", "English Language", "Entrepreneurship",
+      "Estate Management", "Film Production", "Fine and Applied Arts", "Food Science & Technology",
+      "Food Science and Technology", "Forestry", "French", "Geography", "Geology", "German",
+      "Guidance and Counselling", "Health Education", "History", "Human Kinetics Education",
+      "Human Nutrition and Dietetics", "Industrial Chemistry", "Information and Communication Technology",
+      "Information Science and Media Studies", "Information System", "Information Systems",
+      "Integrated Science", "International Relations", "Language and Communication Arts", "Law",
+      "Library and Information Science", "Linguistics", "Literature in English", "Literature-in-English",
+      "Local Government and Development Studies", "Mass Communication", "Materials Science & Engineering",
+      "Materials Science and Engineering", "Mathematics", "Mechanical Engineering", "Medical Rehabilitation",
+      "Medicine and Surgery", "Metallurgical & Materials Engineering", "Metallurgical and Materials Engineering",
+      "Microbiology", "Music", "Nursing Science", "Occupational Therapy", "Pharmacy", "Philosophy",
+      "Physical and Health Education", "Physics", "Political Science", "Portuguese", "Psychology",
+      "Public Administration", "Quantity Surveying", "Religious Studies", "Science Laboratory Tech.",
+      "Science Laboratory Technology", "Social Studies and Civic Education", "Sociology and Anthropology",
+      "Software Engineering", "Soil Science", "Statistics", "Surveying and Geoinformatics",
+      "Urban and Regional Planning", "Yoruba", "Zoology"
     ]
   },
   "Ahmadu Bello University": {
