@@ -670,7 +670,13 @@ export function getOAURequirementByCourse(course: string): OAURequirement | unde
     'surveying': 'Surveying and Geoinformatics',
     'geo-informatics': 'Surveying and Geoinformatics',
     'qs': 'Quantity Surveying',
-    'urp': 'Urban & Regional Planning'
+    'urp': 'Urban & Regional Planning',
+    'metallurgical material engineering': 'Metallurgical and Materials Engineering',
+    'metallurgical and materials engineering': 'Metallurgical and Materials Engineering',
+    'materials science & engineering': 'Metallurgical and Materials Engineering',
+    'materials science and engineering': 'Metallurgical and Materials Engineering',
+    'materials engineering': 'Metallurgical and Materials Engineering',
+    'metallurgical engineering': 'Metallurgical and Materials Engineering'
   };
 
   if (aliasMap[clean]) {

@@ -462,6 +462,12 @@ const NewsGrid: React.FC<NewsGridProps> = ({
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
   const [usagePercent, setUsagePercent]     = useState(0);
   const [syncError, setSyncError]           = useState<string | null>(null);
+  const [syncToast, setSyncToast]           = useState<string | null>(null);
+
+  const showSyncToast = useCallback((msg: string) => {
+    setSyncToast(msg);
+    setTimeout(() => setSyncToast(null), 4500);
+  }, []);
 
   // Admin Edit/Delete states
   const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
@@ -616,9 +622,10 @@ const NewsGrid: React.FC<NewsGridProps> = ({
 
       if (isAuto) await updateGlobalSyncMetadata(Date.now());
 
+      const timeoutMs = isAuto ? 35000 : 45000;
       const liveData = await Promise.race([
         fetchLiveNews(user.email),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Live synchronization timed out.")), 7500))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Live synchronization timed out.")), timeoutMs))
       ]) as any;
 
       if (liveData && liveData.length > 0) {
@@ -657,26 +664,30 @@ const NewsGrid: React.FC<NewsGridProps> = ({
               article.slug || slugify(article.title)
             );
           });
-          if (!isAuto) alert(`Intelligence Sync Complete: ${newlyAdded.length} new updates arrived and active!`);
+          if (!isAuto) showSyncToast(`Intelligence Sync Complete: ${newlyAdded.length} new updates arrived and active!`);
         } else {
-          if (!isAuto) alert("Intelligence Cycle Complete: Stale records refreshed. No new updates needed.");
+          if (!isAuto) showSyncToast("Intelligence Cycle Complete: Stale records refreshed. No new updates needed.");
         }
       } else {
-        if (!isAuto) alert("No new intelligence found in the current cycle. Please try again later or check your API configuration.");
+        if (!isAuto) showSyncToast("No new intelligence found in the current cycle. Please try again later.");
         console.log("DEBUG: fetchLiveNews returned empty or null. liveData =", liveData);
       }
     } catch (e: any) {
-      console.error("NewsGrid: sync error:", e);
-      const isQuota = e?.message?.toLowerCase().match(/quota|429|limit|exhausted/) || e?.status === 'RESOURCE_EXHAUSTED';
-      setSyncError(isQuota
-        ? "Our AI News Sync engine is currently at maximum capacity (Google Gemini rate limit)."
-        : "News synchronization encountered a network connection error. Displaying fully detailed offline news archives."
-      );
+      if (isAuto) {
+        console.warn("NewsGrid: background auto-sync deferred, serving cached news archive:", e?.message || e);
+      } else {
+        console.warn("NewsGrid: sync warning:", e?.message || e);
+        const isQuota = e?.message?.toLowerCase().match(/quota|429|limit|exhausted/) || e?.status === 'RESOURCE_EXHAUSTED';
+        setSyncError(isQuota
+          ? "Our AI News Sync engine is currently at maximum capacity (Google Gemini rate limit)."
+          : "News synchronization took longer than expected. Displaying fully detailed offline news archives."
+        );
+      }
     } finally {
       setIsLoading(false);
       sessionStorage.removeItem('campusai_sync_in_progress'); // ← Always release so next sync can run
     }
-  }, [user, isLoading, loadLocalNews, onLoginRequest]);
+  }, [user, isLoading, loadLocalNews, onLoginRequest, showSyncToast]);
 
   // ── Smart online fact-check search ─────────────────────────────────────────
   // FIX: Optimistic update so the article appears immediately. Then we wait
@@ -744,15 +755,17 @@ const NewsGrid: React.FC<NewsGridProps> = ({
 
   const requestFeedPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      alert("System notifications are not supported in your browser/device."); return;
+      showSyncToast("System notifications are not supported in your browser/device."); 
+      return;
     }
     try {
       const resp = await Notification.requestPermission();
       setNotifPermission(resp);
       if (resp === 'granted') {
         triggerBrowserNotification("🔔 Alerts Activated!", "You will now receive verified JAMB, UTME, and strike updates.");
+        showSyncToast("Push notifications activated successfully!");
       } else {
-        alert("Permission denied. Please click the site settings icon in your address bar to manually allow notifications.");
+        showSyncToast("Notification permission not granted. You can enable it in your browser settings.");
       }
     } catch (e) { console.error("Notification permission error:", e); }
   };
@@ -793,7 +806,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({
       });
     } catch (err) {
       console.error("Failed to delete news:", err);
-      alert("Failed to delete article. Please try again.");
+      showSyncToast("Failed to delete article. Please try again.");
     }
   };
 
@@ -1071,6 +1084,14 @@ const NewsGrid: React.FC<NewsGridProps> = ({
         <div className={`mb-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${filter === 'Hot' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20'}`}>
           {filter === 'Hot' ? <Flame size={12} /> : <Timer size={12} />}
           {filter === 'Hot' ? 'Showing trending & high-interest reports' : 'Showing most recent reports first'}
+        </div>
+      )}
+
+      {/* Toast Feedback */}
+      {syncToast && (
+        <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-bold flex items-center justify-between shadow-md">
+          <span>{syncToast}</span>
+          <button onClick={() => setSyncToast(null)} className="text-emerald-500 hover:text-emerald-700 ml-3 text-sm cursor-pointer">✕</button>
         </div>
       )}
 

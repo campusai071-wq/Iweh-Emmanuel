@@ -397,9 +397,9 @@ export const StudentCommandCenter: React.FC<StudentCommandCenterProps> = ({
 
     if (!verdictText && score !== null) {
       if (score >= resolvedCutoff.numericCutoff) {
-        verdictText = 'High Probability';
+        verdictText = 'Merit Benchmark Met';
       } else if (score >= resolvedCutoff.numericCutoff - 3.5) {
-        verdictText = 'Competitive';
+        verdictText = 'Competitive Range';
       } else {
         verdictText = 'Score Boost Needed';
       }
@@ -600,7 +600,7 @@ export const StudentCommandCenter: React.FC<StudentCommandCenterProps> = ({
             </div>
 
             <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">Calculated Aggregate</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">Screening Benchmark Status</p>
               <div className="flex items-baseline gap-1 sm:gap-2 mt-1">
                 <span className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-white leading-none">
                   {activeTelemetry.aggregateScore !== null ? `${activeTelemetry.aggregateScore}%` : '—'}
@@ -722,6 +722,54 @@ export const StudentCommandCenter: React.FC<StudentCommandCenterProps> = ({
           </button>
         </div>
 
+      </div>
+
+      {/* ── RECOMMENDED NEXT ACTION RETENTION BANNER ── */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm text-white">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-indigo-500/20 text-cyan-300 rounded-xl shrink-0 mt-0.5 border border-indigo-400/30">
+            <Brain size={20} />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                Weak Subject Priority: {cbtSummary?.weakestSubject || 'Chemistry'}
+              </span>
+              <span className="text-[10px] font-semibold text-slate-300">
+                Preparation Loop • Target: <strong className="text-cyan-300">{targetUTMEScore}</strong>
+              </span>
+            </div>
+            <h4 className="text-sm sm:text-base font-black text-white">
+              Recommended Focus Topic: {cbtSummary?.weakestTopic || 'Organic Chemistry — Hydrocarbons'}
+            </h4>
+            <p className="text-xs text-slate-300 max-w-xl">
+              Your recent test results show that {cbtSummary?.weakestSubject || 'Chemistry'} requires practice. Master this topic before taking another CBT drill to close your score gap.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+          <button
+            onClick={() => {
+              navigate('/study-hub');
+              window.scrollTo(0, 0);
+            }}
+            className="flex-1 md:flex-initial px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md shadow-cyan-500/20"
+          >
+            <BookOpen size={14} />
+            <span>Study This Topic</span>
+          </button>
+          <button
+            onClick={() => {
+              navigate('/cbt-simulator');
+              window.scrollTo(0, 0);
+            }}
+            className="flex-1 md:flex-initial px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Zap size={14} />
+            <span>Take Drill</span>
+          </button>
+        </div>
       </div>
 
       {/* ── SECTION 2: ACADEMIC PROFILE SNAPSHOT & SECTION 7: QUICK ACTION LAUNCHPAD ── */}

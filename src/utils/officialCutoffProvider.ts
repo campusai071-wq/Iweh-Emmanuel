@@ -13,6 +13,7 @@ import { YABATECH_CUTOFFS_2026_2027, YABATECH_SESSION, YABATECH_INSTITUTION_NAME
 import { EAUED_CUTOFFS_2026_2027, EAUED_SESSION, EAUED_INSTITUTION_NAME } from '../data/eauedCutoffs2026_2027';
 import { OAUSTECH_CUTOFFS_2026_2027, OAUSTECH_SESSION, OAUSTECH_INSTITUTION_NAME } from '../data/oaustechCutoffs2026_2027';
 import { UNIOSUN_CUTOFFS_2026_2027, UNIOSUN_SESSION, UNIOSUN_INSTITUTION_NAME, getUNIOSUNCutoffForCandidate } from '../data/uniosunCutoffs2026_2027';
+import { isCourseFuzzyMatch } from './courseMatcher';
 
 export interface OfficialCutoffResult {
   institution: string;
@@ -64,6 +65,9 @@ export function getOfficialInstitutionCutoff(
         const dNorm = normalize(d.name);
         return dNorm.includes(nCourse) || nCourse.includes(dNorm);
       });
+    }
+    if (!found) {
+      found = depts.find((d: any) => isCourseFuzzyMatch(d.name, rawCourse));
     }
 
     if (found && found.merit !== null && found.merit !== undefined) {
@@ -198,6 +202,9 @@ export function getOfficialInstitutionCutoff(
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
     }
+    if (!found) {
+      found = DELSU_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
+    }
     if (found) {
       return {
         institution: DELSU_INSTITUTION_NAME,
@@ -225,6 +232,9 @@ export function getOfficialInstitutionCutoff(
         const pNorm = normalize(p.programme);
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
+    }
+    if (!found) {
+      found = FUOYE_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
     }
     if (found) {
       return {
@@ -254,6 +264,9 @@ export function getOfficialInstitutionCutoff(
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
     }
+    if (!found) {
+      found = FULOKOJA_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
+    }
     if (found) {
       return {
         institution: FULOKOJA_INSTITUTION_NAME,
@@ -282,6 +295,9 @@ export function getOfficialInstitutionCutoff(
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
     }
+    if (!found) {
+      found = FUHSI_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
+    }
     if (found) {
       return {
         institution: FUHSI_INSTITUTION_NAME,
@@ -309,6 +325,9 @@ export function getOfficialInstitutionCutoff(
         const pNorm = normalize(p.programme);
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
+    }
+    if (!found) {
+      found = FUTMINNA_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
     }
     if (found) {
       return {
@@ -360,6 +379,9 @@ export function getOfficialInstitutionCutoff(
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
     }
+    if (!found) {
+      found = YABATECH_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
+    }
     if (found) {
       return {
         institution: YABATECH_INSTITUTION_NAME,
@@ -388,6 +410,9 @@ export function getOfficialInstitutionCutoff(
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
     }
+    if (!found) {
+      found = EAUED_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
+    }
     if (found) {
       return {
         institution: EAUED_INSTITUTION_NAME,
@@ -415,6 +440,9 @@ export function getOfficialInstitutionCutoff(
         const pNorm = normalize(p.programme);
         return pNorm.includes(nCourse) || nCourse.includes(pNorm);
       });
+    }
+    if (!found) {
+      found = OAUSTECH_CUTOFFS_2026_2027.find(p => isCourseFuzzyMatch(p.programme, rawCourse));
     }
     if (found) {
       return {

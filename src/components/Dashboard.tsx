@@ -4,7 +4,7 @@ import SEO from './SEO';
 import PolicySection from './PolicySection';
 import RecentActivity from './RecentActivity';
 import FAQSection from './FAQSection';
-import PostUtmeTrackerSection from './PostUtmeTrackerSection';
+import TopNewsCarousel from './TopNewsCarousel';
 import { JambCapsLiveTracker } from './JambCapsLiveTracker';
 import Jamb2027Tracker from './Jamb2027Tracker';
 import AdUnit from './AdUnit';
@@ -69,6 +69,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="pb-16 space-y-12">
       <SEO />
+
+      {/* ── Top News Spotlight Carousel (5 Most Recent Briefings) ── */}
+      <div className="container mx-auto px-2.5 sm:px-4 md:px-8 pt-3 sm:pt-6 max-w-7xl">
+        <TopNewsCarousel onReadArticle={onReadArticle} />
+      </div>
 
       {/* ── Main Command Center Hub ── */}
       <div className="container mx-auto px-2.5 sm:px-4 md:px-8 pt-3 sm:pt-6 max-w-7xl">
@@ -147,11 +152,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {user && (
-          <div className="mt-6">
-            <InviteEarn user={user} />
-          </div>
-        )}
+        <div className="mt-6">
+          <InviteEarn user={user || ({ uid: 'guest-scholar', referral_count: 0 } as any)} />
+        </div>
       </div>
 
       {/* ── Telemetry Feeds, Trackers & Diagnostics ── */}
@@ -165,19 +168,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         
         {/* JAMB CAPS Live Admission Statistics Tracker */}
         <JambCapsLiveTracker 
-          onSelectSchool={(schoolName) => {
-            navigate('/universities', { state: { search: schoolName } });
-            window.scrollTo(0, 0);
-          }}
-        />
-
-        {/* Live Post-UTME Release Tracker Section directly on Dashboard */}
-        <PostUtmeTrackerSection 
-          compact={true}
-          onNavigateToFullHub={() => {
-            navigate('/admissions');
-            window.scrollTo(0, 0);
-          }}
           onSelectSchool={(schoolName) => {
             navigate('/universities', { state: { search: schoolName } });
             window.scrollTo(0, 0);

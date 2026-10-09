@@ -90,6 +90,7 @@ import { trackCbtInteraction } from '../services/analytics';
 import { logUserActivity, saveCalculationAttempt, saveGlobalCbtRecord } from '../services/dbService';
 import { getLocalProfile, updateUserProfile, incrementCbtUsage } from '../services/userService';
 import AdUnit from './AdUnit';
+import SideNewsWidget from './SideNewsWidget';
 
 /**
  * ---------------------------------------------------------------------------
@@ -2712,6 +2713,8 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                           user_name: user?.displayName
                         });
 
+                        window.dispatchEvent(new CustomEvent('campusai_target_updated'));
+
                         setNewMonthInput('');
                         setNewScoreInput('');
                       }
@@ -3130,6 +3133,15 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                       </>
                     )}
                   </button>
+                </div>
+
+                {/* Relevant JAMB & Exam Wire for candidates */}
+                <div className="pt-4 max-w-2xl mx-auto">
+                  <SideNewsWidget 
+                    context="cbt" 
+                    limit={3} 
+                    title="Live JAMB & UTME Examination Bulletins"
+                  />
                 </div>
               </div>
             ) : showResults ? (

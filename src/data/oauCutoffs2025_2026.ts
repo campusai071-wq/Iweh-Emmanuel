@@ -8,6 +8,8 @@
  *  - Educationally Less Developed States (ELDS)
  */
 
+import { isCourseFuzzyMatch } from '../utils/courseMatcher';
+
 export interface OAUCutoffProgramme {
   faculty: string;
   programme: string;
@@ -806,10 +808,13 @@ export function getOAUCutoffForCandidate(
   quotaLabel: string;
 } {
   const pClean = clean(programmeName);
-  const prog = OAU_CUTOFFS_2025_2026.find(p => {
+  let prog = OAU_CUTOFFS_2025_2026.find(p => {
     const itemClean = clean(p.programme);
     return itemClean === pClean || itemClean.includes(pClean) || pClean.includes(itemClean);
   });
+  if (!prog) {
+    prog = OAU_CUTOFFS_2025_2026.find(p => isCourseFuzzyMatch(p.programme, programmeName));
+  }
 
   if (!prog) {
     return {

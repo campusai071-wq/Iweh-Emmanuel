@@ -3,6 +3,8 @@
  * 2026/2027 Admission Exercise: Departmental Cut Off Marks & Scoring Rules
  */
 
+import { isCourseFuzzyMatch } from '../utils/courseMatcher';
+
 export interface FUTACutoffProgramme {
   faculty: string;
   school: string;
@@ -77,9 +79,12 @@ export const getFUTASchools = (): string[] => {
 
 export const getFUTACutoffByCourse = (courseName: string): FUTACutoffProgramme | null => {
   const query = courseName.toLowerCase().trim();
-  const match = FUTA_CUTOFFS_2026_2027.find(item => 
+  let match = FUTA_CUTOFFS_2026_2027.find(item => 
     item.programme.toLowerCase().includes(query) || query.includes(item.programme.toLowerCase())
   );
+  if (!match) {
+    match = FUTA_CUTOFFS_2026_2027.find(item => isCourseFuzzyMatch(item.programme, courseName));
+  }
   return match || null;
 };
 

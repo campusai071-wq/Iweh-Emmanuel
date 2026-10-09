@@ -38,6 +38,7 @@ import { FULOKOJA_CUTOFFS_2026_2027, getFulokojaFaculties, getFulokojaCutoffByCo
 import { DELSU_CUTOFFS_2026_2027, getDelsuFaculties, getDelsuCutoffByCourse, DELSU_SESSION, DELSU_INSTITUTION_NAME, DELSU_PORTAL_URL } from '../data/delsuCutoffs2026_2027';
 import { OAU_CUTOFFS_2025_2026, getOAUFaculties, OAU_SESSION, OAU_INSTITUTION_NAME, getOAUCutoffForCandidate } from '../data/oauCutoffs2025_2026';
 import { getOfficialInstitutionCutoff, getOfficialInstitutionProgrammes } from '../utils/officialCutoffProvider';
+import { findBestCourseMatch, isCourseFuzzyMatch } from '../utils/courseMatcher';
 import { getVerifiedCoursesForCalculator } from '../services/jambInstitutionService';
 import { evaluateCandidateQuota, isStateELDS, isStateInCatchment } from '../utils/quotaMapping';
 import { trackCalculatorUsed, trackAdmissionAnalysis, trackInstitutionSearch, trackPremiumClick, trackResultSaved } from '../services/analytics';
@@ -46,6 +47,7 @@ import QuotaModal from './QuotaModal';
 import Testimonials from './Testimonials';
 import { AdmissionChecklist } from './AdmissionChecklist';
 import CalculationAnimation from './CalculationAnimation';
+import SideNewsWidget from './SideNewsWidget';
 
 const PdfExportModal = React.lazy(() => import('./PdfExportModal'));
 const FileUploadHubModal = React.lazy(() => import('./FileUploadHubModal'));
@@ -2006,8 +2008,12 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
           setJambScore(String(preferredJamb));
         }
 
-        // Only hydrate lastRes AI result if it matches preferredUni
-        if (lastRes && lastRes.aiResult && lastRes.uniName && (
+        // Only hydrate lastRes AI result if it matches BOTH preferredUni AND preferredCourse
+        const lastCourseMatches = !preferredCourse || !lastRes?.courseName || 
+          isCourseFuzzyMatch(lastRes.courseName, preferredCourse) ||
+          lastRes.courseName.toLowerCase().trim() === preferredCourse.toLowerCase().trim();
+
+        if (lastRes && lastRes.aiResult && lastRes.uniName && lastCourseMatches && (
           lastRes.uniName.toLowerCase().includes(preferredUni.toLowerCase()) ||
           preferredUni.toLowerCase().includes(lastRes.uniName.toLowerCase())
         )) {
@@ -2759,13 +2765,23 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
         setUniSearch(activeUni.name);
       }
     }
-    let activeCourse = overrideCourse || targetCourse || courseSearch;
-
-    if (!activeCourse) {
-      activeCourse = availableCourses[0] || "Computer Science";
-      setTargetCourse(activeCourse);
-      setCourseSearch(activeCourse);
+    let rawCourse = overrideCourse || courseSearch?.trim() || targetCourse?.trim();
+    if (!rawCourse && availableCourses.length > 0) {
+      rawCourse = availableCourses[0];
+    } else if (!rawCourse) {
+      rawCourse = "Computer Science";
     }
+
+    let activeCourse = rawCourse;
+    if (availableCourses && availableCourses.length > 0) {
+      const bestMatch = findBestCourseMatch(rawCourse, availableCourses);
+      if (bestMatch) {
+        activeCourse = bestMatch;
+      }
+    }
+
+    setTargetCourse(activeCourse);
+    setCourseSearch(activeCourse);
 
     if (!stateOfOrigin && activeUni) {
       const defaultState = getInstitutionDefaultState(activeUni.name, activeUni.slug);
@@ -3056,7 +3072,7 @@ ${isSurplus
             parseFloat(aggregateScore.toString()) || 0,
             parsedCutoffVal,
             targetUni.name,
-            targetCourse || courseSearch,
+            activeCourse || courseSearch || targetCourse,
             stateOfOrigin,
             !!isELDSState,
             !!isCatchmentState,
@@ -3092,7 +3108,7 @@ ${isSurplus
         // GA4 Event: admission_analysis
         trackAdmissionAnalysis({
           university: targetUni.name,
-          course: targetCourse || courseSearch,
+          course: activeCourse || courseSearch || targetCourse,
           aggregate_score: parseFloat(aggregateScore.toString()) || 0,
           verdict: finalVerdict,
           probability: finalProbability,
@@ -3942,13 +3958,38 @@ ${isSurplus
                     id="course-search" name="course-search" type="text"
                     placeholder="e.g. Nursing..." value={courseSearch}
                     onChange={e => {
-                      setCourseSearch(e.target.value);
+                      const val = e.target.value;
+                      setCourseSearch(val);
+                      setTargetCourse(val);
                       setIsCourseDropdownOpen(true);
                       if (highlightedFieldKeys['course-search']) {
                         setHighlightedFieldKeys(prev => ({ ...prev, 'course-search': false }));
                       }
                     }}
                     onFocus={() => setIsCourseDropdownOpen(true)}
+                    onBlur={() => {
+                      if (courseSearch.trim() && availableCourses.length > 0) {
+                        const best = findBestCourseMatch(courseSearch, availableCourses);
+                        if (best) {
+                          setTargetCourse(best);
+                          setCourseSearch(best);
+                        }
+                      }
+                      setTimeout(() => setIsCourseDropdownOpen(false), 200);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (courseSearch.trim() && availableCourses.length > 0) {
+                          const best = findBestCourseMatch(courseSearch, availableCourses);
+                          if (best) {
+                            setTargetCourse(best);
+                            setCourseSearch(best);
+                          }
+                        }
+                        setIsCourseDropdownOpen(false);
+                      }
+                    }}
                     className={`w-full pl-10 pr-4 py-2.5 bg-black/40 border rounded-xl font-bold text-xs outline-none transition-all text-white ${
                       highlightedFieldKeys['course-search']
                         ? 'border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse'
@@ -4001,11 +4042,12 @@ ${isSurplus
                     {isCourseDropdownOpen && (courseSearch.length > 1 || availableCourses.length > 0) && (
                       <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 max-h-60 overflow-y-auto">
                         {availableCourses
-                          .filter(c => c.toLowerCase().includes(courseSearch.toLowerCase()))
+                          .filter(c => !courseSearch.trim() || isCourseFuzzyMatch(c, courseSearch))
                           .slice(0, 15)
                           .map(c => (
                             <button
                               key={c}
+                              type="button"
                               onClick={() => {
                                 setTargetCourse(c);
                                 setCourseSearch(c);
@@ -4024,8 +4066,9 @@ ${isSurplus
                               {c}
                             </button>
                           ))}
-                        {availableCourses.filter(c => c.toLowerCase().includes(courseSearch.toLowerCase())).length === 0 && courseSearch.length > 0 && (
+                        {availableCourses.filter(c => !courseSearch.trim() || isCourseFuzzyMatch(c, courseSearch)).length === 0 && courseSearch.length > 0 && (
                           <button
+                            type="button"
                             onClick={() => {
                               setTargetCourse(courseSearch);
                               setIsCourseDropdownOpen(false);
@@ -5106,7 +5149,7 @@ ${isSurplus
                       </div>
                       <div>
                         <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest">Course</p>
-                        <p className="text-xs md:text-sm font-bold text-white mt-1 truncate">{targetCourse || courseSearch}</p>
+                        <p className="text-xs md:text-sm font-bold text-white mt-1 truncate">{courseSearch || targetCourse}</p>
                       </div>
                       <div>
                         <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest">{(isAR || isPostUtmePending) ? 'Projected' : 'Aggregate'}</p>
@@ -6958,19 +7001,38 @@ ${isSurplus
                   >
                     <MessageCircle size={14} className="group-hover:animate-bounce" /> Ask on WhatsApp
                   </button>
+
+                  {/* Contextual Admission Bulletins for the Audited Institution */}
+                  <div className="pt-2">
+                    <SideNewsWidget 
+                      context="calculator" 
+                      institution={targetUni?.name}
+                      limit={2}
+                      title={`Latest ${targetUni?.name ? `${targetUni.name} & ` : ''}Admission Bulletins`}
+                    />
+                  </div>
                 </div>
                   </>
                 )}
               </motion.div>
 
             ) : (
-              /* Awaiting state */
-              <div className="h-full min-h-[320px] flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-white/5 rounded-[32px] bg-white/[0.02]">
-                <div className="w-16 h-16 bg-white/5 rounded-[24px] flex items-center justify-center mb-5">
-                  <Brain size={32} className="text-gray-600" />
+              /* Awaiting state with live contextual admission news */
+              <div className="space-y-6">
+                <div className="min-h-[200px] flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-white/5 rounded-[28px] bg-white/[0.02]">
+                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mb-3 text-cyan-400">
+                    <Brain size={28} />
+                  </div>
+                  <h3 className="text-base font-black uppercase tracking-tight mb-1 text-white">Awaiting Parameters</h3>
+                  <p className="text-gray-400 text-[10px] font-medium max-w-[260px]">Enter your JAMB score & subjects to map your 2026 admission probability matrix.</p>
                 </div>
-                <h3 className="text-lg font-black uppercase tracking-tight mb-2">Awaiting Parameters</h3>
-                <p className="text-gray-500 text-[10px] font-medium max-w-[240px]">Provide your scores to map your 2026 admission probability matrix.</p>
+
+                {/* Relevant live news bulletins while student is working */}
+                <SideNewsWidget 
+                  context="calculator" 
+                  institution={targetUni?.name}
+                  limit={3}
+                />
               </div>
             )}
           </AnimatePresence>
@@ -7181,7 +7243,7 @@ ${isSurplus
                 <button
                   type="button"
                   onClick={() => {
-                    let courseToUse = targetCourse || courseSearch;
+                    let courseToUse = courseSearch?.trim() || targetCourse?.trim();
                     if (!courseToUse && availableCourses.length > 0) {
                       courseToUse = availableCourses[0];
                       setTargetCourse(courseToUse);

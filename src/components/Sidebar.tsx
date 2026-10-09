@@ -71,9 +71,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'admissions',
-      name: 'Post-UTME Tracker',
+      name: 'Admission Screening',
       icon: <Calendar size={18} />,
-      badge: `${stats.open} OPEN`,
+      badge: 'Live',
       badgeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
     },
     {
@@ -341,33 +341,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <ChevronRight size={18} className="text-white/80" />
                 </button>
               )}
-
-              {/* Live Post-UTME Tracking Indicator */}
-              <div 
-                onClick={() => handleNavClick('admissions')}
-                className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border border-emerald-500/20 cursor-pointer group transition-all hover:border-emerald-500/40"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} /> Post-UTME Status Monitor
-                  </span>
-                  <ChevronRight size={14} className="text-emerald-500 group-hover:translate-x-1 transition-transform" />
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                  <div className="p-2 bg-white/80 dark:bg-gray-900/80 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <span className="block text-sm font-black text-emerald-600 dark:text-emerald-400">{stats.open}</span>
-                    <span className="text-[8px] font-bold uppercase text-gray-400">Open Now</span>
-                  </div>
-                  <div className="p-2 bg-white/80 dark:bg-gray-900/80 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <span className="block text-sm font-black text-amber-600 dark:text-amber-400">{stats.notOpen}</span>
-                    <span className="text-[8px] font-bold uppercase text-gray-400">Not Open</span>
-                  </div>
-                  <div className="p-2 bg-white/80 dark:bg-gray-900/80 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <span className="block text-sm font-black text-rose-600 dark:text-rose-400">{stats.closed}</span>
-                    <span className="text-[8px] font-bold uppercase text-gray-400">Closed</span>
-                  </div>
-                </div>
-              </div>
 
               {/* Main Navigation Items */}
               <div className="space-y-1">

@@ -38,6 +38,7 @@ const LoginPage = lazyWithRetry(() => import('./LoginPage'));
 const ShareModal = lazyWithRetry(() => import('./ShareModal'));
 const InviteEarnModal = lazyWithRetry(() => import('./InviteEarnModal'));
 const ScholarPackModal = lazyWithRetry(() => import('./ScholarPackModal'));
+const ContextualNewsRail = lazyWithRetry(() => import('./ContextualNewsRail'));
 const SupportModal = lazyWithRetry(() => import('./SupportModal'));
 const LegalModal = lazyWithRetry(() => import('./LegalModal'));
 const CookieConsent = lazyWithRetry(() => import('./CookieConsent'));
@@ -1764,6 +1765,9 @@ const AppContent: React.FC = () => {
             </button>
           </div>
         )}
+        {/* Contextual Academic & Campus News Rail across all pages */}
+        <ContextualNewsRail onReadArticle={openArticle} />
+
         <CookieConsent />
         <InstallPrompt />
         <Tour isOpen={isTourOpen} onClose={() => setIsTourOpen(false)} />

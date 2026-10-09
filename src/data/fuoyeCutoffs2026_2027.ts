@@ -3,6 +3,8 @@
  * 2026/2027 Admission Merit Points
  */
 
+import { isCourseFuzzyMatch } from '../utils/courseMatcher';
+
 export interface FuoyeCutoffProgramme {
   sn: number;
   programme: string;
@@ -121,9 +123,12 @@ export const FUOYE_CUTOFFS_2026_2027: FuoyeCutoffProgramme[] = [
 
 export const getFuoyeCutoffByCourse = (courseName: string): FuoyeCutoffProgramme | null => {
   const query = courseName.toLowerCase().trim();
-  const match = FUOYE_CUTOFFS_2026_2027.find(item => {
+  let match = FUOYE_CUTOFFS_2026_2027.find(item => {
     const cleanProg = item.programme.toLowerCase();
     return cleanProg.includes(query) || query.includes(cleanProg);
   });
+  if (!match) {
+    match = FUOYE_CUTOFFS_2026_2027.find(item => isCourseFuzzyMatch(item.programme, courseName));
+  }
   return match || null;
 };

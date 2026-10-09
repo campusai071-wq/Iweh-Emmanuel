@@ -7,6 +7,7 @@ import { getUniversityDetailedInfo, getUniversityCourses, getPostUtmeDates } fro
 import { getPostUtmeRecordForSchool, PostUtmeStatusType } from '../services/postUtmeTracker';
 import { PostUtmeInfo } from '../types';
 import { trackInstitutionSearch } from '../services/analytics';
+import SideNewsWidget from './SideNewsWidget';
 
 interface UniBio {
   bio: string;
@@ -385,24 +386,24 @@ const UniversityDirectory: React.FC<UniversityDirectoryProps> = ({ externalHighl
                              </div>
                           </div>
 
-                          {/* Post-UTME Tracker */}
+                          {/* Admission Screening & Form Schedule */}
                           <div className="bg-gray-900 rounded-[32px] p-6 md:p-8 text-white relative overflow-hidden border border-white/5">
                              {!isPremium && (
                                 <div className="absolute inset-0 z-20 backdrop-blur-md bg-black/40 flex flex-col items-center justify-center p-6 text-center">
                                    <Lock size={24} className="text-blue-400 mb-3" />
-                                   <p className="text-[10px] font-black uppercase tracking-widest text-white mb-4">Premium Admission Signal</p>
+                                   <p className="text-[10px] font-black uppercase tracking-widest text-white mb-4">Verified Screening Schedule</p>
                                    <button 
                                       onClick={onUpgrade}
                                       className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
                                    >
-                                      Unlock Tracker
+                                      Unlock Schedule
                                    </button>
                                 </div>
                              )}
                              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                              <div className="flex items-center justify-between mb-6">
                                 <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-blue-400">
-                                   <Calendar size={14} /> Post-UTME Tracker
+                                   <Calendar size={14} /> Admission Screening Schedule
                                 </h4>
                                 {isPostUtmeLoading ? (
                                    <Loader2 size={14} className="animate-spin text-blue-400" />
@@ -527,6 +528,15 @@ const UniversityDirectory: React.FC<UniversityDirectoryProps> = ({ externalHighl
                 </motion.div>
               ) : null}
             </AnimatePresence>
+
+            {/* Contextual Higher Education News Wire */}
+            <div className="mt-12">
+              <SideNewsWidget 
+                context="universities" 
+                limit={3} 
+                title="Latest Higher Education & Campus Bulletins" 
+              />
+            </div>
           </div>
         </div>
       </div>

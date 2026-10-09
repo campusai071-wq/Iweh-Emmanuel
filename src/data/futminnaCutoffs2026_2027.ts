@@ -4,6 +4,8 @@
  * Official Departmental Cut-Off Marks & Registration Guidelines
  */
 
+import { isCourseFuzzyMatch } from '../utils/courseMatcher';
+
 export interface FUTMINNACutoffProgramme {
   sn: number;
   programme: string;
@@ -191,5 +193,8 @@ export const getFUTMINNACutoffByCourse = (courseName: string): FUTMINNACutoffPro
   match = FUTMINNA_CUTOFFS_2026_2027.find(item => 
     item.programme.toLowerCase().includes(query) || query.includes(item.programme.toLowerCase())
   );
+  if (!match) {
+    match = FUTMINNA_CUTOFFS_2026_2027.find(item => isCourseFuzzyMatch(item.programme, courseName));
+  }
   return match || null;
 };
