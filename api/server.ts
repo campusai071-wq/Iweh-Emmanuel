@@ -7195,15 +7195,34 @@ Sitemap: https://campusai.com.ng/news-sitemap.xml
   return res.status(200).send(fallbackRobots);
 });
 
-// Ads.txt route
+// Ads.txt route (Google AdSense Publisher Verification)
 app.get(['/ads.txt', '/api/ads.txt'], (req, res) => {
+  const verifiedAdsContent = 'google.com, pub-1215788814908276, DIRECT, f08c47fec0942fa0\n';
   const adsFilePath = path.join(process.cwd(), 'public', 'ads.txt');
   const distAdsPath = path.join(process.cwd(), 'dist', 'ads.txt');
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
-  if (fs.existsSync(adsFilePath)) return res.sendFile(adsFilePath);
-  if (fs.existsSync(distAdsPath)) return res.sendFile(distAdsPath);
-  return res.status(200).send('# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0\n');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  if (fs.existsSync(adsFilePath)) {
+    try {
+      const fileData = fs.readFileSync(adsFilePath, 'utf8').trim();
+      if (fileData && !fileData.startsWith('#') && fileData.includes('pub-1215788814908276')) {
+        return res.status(200).send(fileData + '\n');
+      }
+    } catch {}
+  }
+
+  if (fs.existsSync(distAdsPath)) {
+    try {
+      const fileData = fs.readFileSync(distAdsPath, 'utf8').trim();
+      if (fileData && !fileData.startsWith('#') && fileData.includes('pub-1215788814908276')) {
+        return res.status(200).send(fileData + '\n');
+      }
+    } catch {}
+  }
+
+  return res.status(200).send(verifiedAdsContent);
 });
 
 // IndexNow & Webmaster .txt verification files route (e.g. /14fbbbae19ab4b788d8153edd1d2550e.txt or /c557dadad68347b8e26939a56c132027.txt)
