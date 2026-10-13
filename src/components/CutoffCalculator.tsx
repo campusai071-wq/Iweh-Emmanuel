@@ -3457,7 +3457,7 @@ ${isSurplus
                           onClick={() => setIsFUTACutoffsModalOpen(true)}
                           className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 self-start sm:self-auto shrink-0 cursor-pointer"
                         >
-                          <BookOpen size={11} /> View All Official FUTA 2025/2026 Cut-Off Marks
+                          <BookOpen size={11} /> View All Official FUTA 2026/2027 Cut-Off Marks
                         </button>
                       )}
                       {currentSchoolSlug === 'lautech' && (
@@ -7768,7 +7768,7 @@ ${isSurplus
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8px] font-black uppercase tracking-widest">
-                        Official FUTA Release • 2025/2026
+                        Official FUTA Release • 2026/2027
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight mt-1">
