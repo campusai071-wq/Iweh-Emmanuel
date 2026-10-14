@@ -576,6 +576,107 @@ export const JAMB_KNOWLEDGE_BASE: KnowledgeDocument[] = [
     version: "2024/2026"
   },
   {
+    id: "funaab_pre_admission_screening_cutoffs",
+    organization: "FUNAAB",
+    page_type: "policy",
+    category: "Institution Cutoffs",
+    subcategory: "Minimum Acceptable UTME Scores",
+    title: "FUNAAB Pre-Admission Screening 2026/2027: Direct Entry Admission List & Minimum Acceptable UTME Scores",
+    summary: "Official admission framework and minimum acceptable UTME score thresholds released by the Directorate of ICT Services for the 2026/2027 Pre-Admission Screening Exercise across all colleges of the Federal University of Agriculture, Abeokuta (FUNAAB) and its affiliate institutions (FCAIB & OYSCATECH), along with the uploaded Direct Entry Admission List.",
+    steps: [
+      "Confirm your UTME score meets or exceeds the minimum acceptable score for your chosen programme (160 to 200 marks).",
+      "Direct Entry candidates: Verify qualifying ND (Upper Credit), HND, NCE (Credit), or IJMB/JUPEB results and confirm status on the uploaded Direct Entry Admission List on admission.unaab.edu.ng.",
+      "Effect a change of course and/or institution on JAMB CAPS to FUNAAB as first choice before the application close date.",
+      "Access the FUNAAB Pre-Admission Screening portal to complete online biodata and O'Level/A'Level results upload.",
+      "Print screening application verification slip and monitor admission ranking."
+    ],
+    requirements: [
+      "Minimum acceptable UTME score for your chosen department (160 for Agriculture/EDS, 180 for Sciences/Food, 200 for Engineering/Computing/Vet/Accounting)",
+      "Direct Entry: National Diploma (ND) at Upper Credit, NCE at Credit/Merit, or GCE A'Level/IJMB/JUPEB passes in relevant subjects",
+      "Five (5) O'Level credit passes in relevant science/commercial/arts subjects in max 2 sittings",
+      "FUNAAB selected as first choice on JAMB CAPS portal",
+      "Mandatory O'Level and A'Level upload on JAMB CAPS portal"
+    ],
+    eligibility_rules: [
+      "Candidates will primarily be assessed based on the course reflected in the record harvested at the close of application.",
+      "Candidates who score below the specified departmental minimum cannot be considered for admission into that programme.",
+      "Direct Entry candidates must have registered through JAMB and forwarded authentic academic transcripts to the Registrar."
+    ],
+    key_facts: [
+      "Direct Entry Upload: FUNAAB has uploaded the official Direct Entry Admission List on the admissions portal (admission.unaab.edu.ng).",
+      "Agriculture (All 160 marks): Agricultural Administration, Agricultural Economics, Animal Production, Agronomy, Soil Science, Aquaculture, Environmental Management, Forestry, Horticulture, and NEW Water Sanitation & Hygiene.",
+      "Computing Science (All 200 marks): Computer Science, Cyber Security, Data Science, Information Communication Technology, Information Systems, Information Technology, Software Engineering.",
+      "Engineering (All 200 marks): Agricultural Engineering, Civil Engineering, Electrical & Electronics Engineering, Mechanical Engineering, Mechatronic Engineering.",
+      "Veterinary Medicine: Minimum 200 marks.",
+      "Biological Sciences: Biochemistry (200), Microbiology (200), Pure & Applied Botany (180), Pure & Applied Zoology (180), NEW Biotechnology (190), NEW Public Health (190), NEW Science Lab Technology (190).",
+      "Food Science & Human Ecology: Food Science & Technology (200), Nutrition & Dietetics (200), Clothing & Textile Design (180), Home Science & Management (180), Hospitality & Tourism (180).",
+      "Physical Sciences: Mathematics (200), Physics (200), Statistics (200), Chemistry (180), Industrial Chemistry (180), NEW Geophysics (180).",
+      "Entrepreneurial & Development Studies: Accounting (200), Banking & Finance (200), Business Administration (200), Economics (200), Entrepreneurial Studies (180), Library & Information Science (180), Cooperative Studies (160), Development Studies (160).",
+      "Affiliate Institutions: FCAIB (Agriculture 160, Home Science 160); OYSCATECH (Agric Engineering 180, Computer Science 180, Microbiology 180, Agriculture 160, Chemistry 160, Forestry 160, Statistics 160).",
+      "Screening Scoring: 50:50 composite model (50% UTME score + 50% O'Level points ranking)."
+    ],
+    important_notes: [
+      "Candidates can effect a change of course/institution at an accredited JAMB centre before the close of application.",
+      "Only the course recorded on JAMB CAPS at the application closing deadline will be harvested for screening.",
+      "Direct Entry candidates must ensure their institutions have submitted their academic transcripts to FUNAAB Academic Affairs."
+    ],
+    keywords: ["funaab cutoff", "funaab direct entry list", "funaab cut off 2026", "funaab utme minimum score", "funaab screening marks", "funaab abeokuta admissions", "funaab direct entry admission list", "fcaib", "oyscatech"],
+    related_topics: ["FUNAAB Screening Guidelines", "Direct Entry Admission List", "JAMB Change of Institution"],
+    official_source: "https://admission.unaab.edu.ng",
+    source_type: "Official Institution Portal",
+    last_verified: "2026-10-12",
+    version: "2026/2027"
+  },
+  {
+    id: "uniben_official_admission_policy",
+    organization: "UNIBEN",
+    page_type: "policy",
+    category: "Institution Policy",
+    subcategory: "Statutory Admission & Progression Criteria",
+    title: "University of Benin (UNIBEN) Official Senate Admission Policy & Screening Guidelines",
+    summary: "Complete statutory admission framework approved by the Senate of the University of Benin (UNIBEN) covering UTME cut-offs, CEEC Post-UTME screening, O'Level requirements, exemptions for disabled and international candidates, degree classification, and academic progression rules.",
+    steps: [
+      "Score minimum 200 marks in the Unified Tertiary Matriculation Examination (UTME).",
+      "Register and sit for the UNIBEN Post-UTME CBT screening examination conducted by the Central Entrance Examination Committee (CEEC).",
+      "Score at least 50% in the Post-UTME screening test to be considered for admission.",
+      "Aggregate computation: (JAMB Score / 8) + (Post-UTME Score / 2) on a 100% scale.",
+      "Monitor departmental cut-off marks across Merit, Catchment, and ELDS quotas on JAMB CAPS and UNIBEN Kofa portal.",
+      "Complete physical and online clearance and submit O'Level certificates for certificate verification."
+    ],
+    requirements: [
+      "Minimum UTME Score of 200 marks",
+      "Minimum 50% pass mark in UNIBEN Post-UTME screening test",
+      "Five (5) O'Level credit passes including English Language and Mathematics in max 2 sittings (WAEC/NECO/GCE/NABTEB)",
+      "MANDATORY EXCEPTION: Candidates seeking admission into Medicine and Surgery (MBBS) MUST obtain all five (5) O'Level credits in ONE SINGLE SITTING."
+    ],
+    eligibility_rules: [
+      "Physically Challenged Candidates: Persons with disabilities are strictly EXEMPTED from writing the Post-UTME test (they only need to meet minimum UTME score of 200 and basic O'level prerequisites).",
+      "International Students: Non-Nigerian candidates are strictly EXEMPTED from writing the Post-UTME screening test.",
+      "Zero tolerance for fraudulent or deceptive credentials: Any candidate with inconsistent names or forged documents faces immediate expulsion and referral to security agencies.",
+      "Dual Programme Prohibition: Students are not permitted to pursue two programmes simultaneously in UNIBEN."
+    ],
+    key_facts: [
+      "General UTME Minimum Cutoff = 200 marks.",
+      "CEEC Post-UTME Minimum Passing Threshold = 50% (50/100).",
+      "Screening Aggregate Formula = 50:50 Composite ((UTME/8) + (PUTME/2)).",
+      "Medicine and Surgery (MBBS) requires five credits in ONE SITTING strictly.",
+      "Degree Classification (4.0 Point Scale): First Class Honours (3.50 - 4.00), Second Class Upper (3.00 - 3.49), Second Class Lower (2.00 - 2.99), Third Class (1.50 - 1.99). CGPA below 1.00 is not awarded a degree.",
+      "Progression Unit Requirements: 100L requires min 20 passed units; 200L requires min 40 cumulative passed units; 300L requires min 60 cumulative passed units; minimum CGPA of 1.00 at each level.",
+      "Quota Allocations: National Merit, Catchment Pool (Edo and neighboring states in South-South/Midwest), and Educationally Less Developed States (ELDS)."
+    ],
+    important_notes: [
+      "At least two of the three names on all admission documents must be completely consistent, one of which must be the surname.",
+      "All affidavits of age declaration cannot be altered even after graduation.",
+      "A student who fails to register courses within two weeks after the beginning of the academic session is deemed to have voluntarily withdrawn."
+    ],
+    keywords: ["uniben admission policy", "uniben cutoff mark 200", "uniben post utme pass mark 50", "uniben mbbs one sitting", "uniben 50 50 formula", "uniben degree classification", "uniben progression 4 point scale"],
+    related_topics: ["UNIBEN Post-UTME Screening", "Medical Admission Requirements", "Degree Classification Guidelines"],
+    official_source: "https://www.uniben.edu",
+    source_type: "Official Institution Policy Document",
+    last_verified: "2026-10-12",
+    version: "2026/2027"
+  },
+  {
     id: "futa_schools_and_faculties",
     organization: "FUTA",
     page_type: "informational",

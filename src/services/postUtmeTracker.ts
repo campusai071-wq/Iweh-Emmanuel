@@ -55,6 +55,15 @@ const BASELINE_POST_UTME: Record<string, Omit<PostUtmeSchoolRecord, 'schoolName'
     registrationFee: 5000,
     requirements: 'Minimum JAMB score: 200. First choice candidates only.'
   },
+  "Federal University of Agriculture, Abeokuta": {
+    status: 'OPEN',
+    statusText: 'Registration Active',
+    details: 'FUNAAB 2026/2027 Pre-Admission Screening & Direct Entry exercise active on admission.unaab.edu.ng. Direct Entry Admission List uploaded. Cut-off scores range from 160 to 200.',
+    portalLink: 'https://admission.unaab.edu.ng',
+    cutoffScore: '160 - 200',
+    registrationFee: 2000,
+    requirements: 'Minimum JAMB score: 160 (Agriculture/EDS), 180 (Biological/Physical Sciences/Food), 200 (Engineering/Computing/Vet/Accounting). First choice candidates only.'
+  },
   "Obafemi Awolowo University": {
     status: 'OPEN',
     statusText: 'Registration Active',

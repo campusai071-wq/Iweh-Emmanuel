@@ -37,6 +37,7 @@ import { FUOYE_CUTOFFS_2026_2027, getFuoyeCutoffByCourse, FUOYE_SESSION, FUOYE_I
 import { FULOKOJA_CUTOFFS_2026_2027, getFulokojaFaculties, getFulokojaCutoffByCourse, FULOKOJA_SESSION, FULOKOJA_INSTITUTION_NAME, FULOKOJA_APPROVAL_DATE } from '../data/fulokojaCutoffs2026_2027';
 import { DELSU_CUTOFFS_2026_2027, getDelsuFaculties, getDelsuCutoffByCourse, DELSU_SESSION, DELSU_INSTITUTION_NAME, DELSU_PORTAL_URL } from '../data/delsuCutoffs2026_2027';
 import { OAU_CUTOFFS_2026_2027 as OAU_CUTOFFS_2025_2026, getOAUFaculties2026 as getOAUFaculties, OAU_SESSION, OAU_INSTITUTION_NAME, getOAUCutoffForCandidate2026 as getOAUCutoffForCandidate } from '../data/oauCutoffs2026_2027';
+import { FUNAAB_CUTOFFS_2026_2027, getFUNAABColleges, FUNAAB_SESSION, FUNAAB_INSTITUTION_NAME } from '../data/funaabCutoffs2026_2027';
 import { getOfficialInstitutionCutoff, getOfficialInstitutionProgrammes } from '../utils/officialCutoffProvider';
 import { findBestCourseMatch, isCourseFuzzyMatch } from '../utils/courseMatcher';
 import { getVerifiedCoursesForCalculator } from '../services/jambInstitutionService';
@@ -1710,6 +1711,11 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
   const [oauCutoffSearch, setOauCutoffSearch] = useState('');
   const [oauFacultyFilter, setOauFacultyFilter] = useState('ALL');
   const [oauModalStateFilter, setOauModalStateFilter] = useState<'merit' | 'osun' | 'oyo' | 'ogun' | 'ondo' | 'ekiti' | 'lagos' | 'elds'>('merit');
+
+  // ── FUNAAB 2026/2027 Cutoffs Explorer State ──
+  const [isFUNAABCutoffsModalOpen, setIsFUNAABCutoffsModalOpen] = useState(false);
+  const [funaabCutoffSearch, setFunaabCutoffSearch] = useState('');
+  const [funaabCollegeFilter, setFunaabCollegeFilter] = useState('ALL');
 
   // ── Advanced Calculator Features States ──
   const [simJamb, setSimJamb] = useState<number>(0);
@@ -3521,6 +3527,15 @@ ${isSurplus
                           className="px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 self-start sm:self-auto shrink-0 cursor-pointer"
                         >
                           <BookOpen size={11} /> View Official OAU 2026/2027 Stamped Cut-Off Marks (Merit, Catchment & ELDS)
+                        </button>
+                      )}
+                      {(currentSchoolSlug === 'funaab' || (targetUni?.name || '').toLowerCase().includes('agriculture, abeokuta') || (targetUni?.name || '').toLowerCase().includes('funaab')) && (
+                        <button
+                          type="button"
+                          onClick={() => setIsFUNAABCutoffsModalOpen(true)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 self-start sm:self-auto shrink-0 cursor-pointer"
+                        >
+                          <BookOpen size={11} /> View All Official FUNAAB 2026/2027 Pre-Admission Minimum UTME Scores (70 Courses)
                         </button>
                       )}
                     </div>
@@ -7530,6 +7545,7 @@ ${isSurplus
             <a href="/unilorin-aggregate-calculator" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold rounded-lg transition-colors">Calculate for UNILORIN</a>
             <a href="/unn-aggregate-calculator" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold rounded-lg transition-colors">Calculate for UNN</a>
             <a href="/futa-aggregate-calculator" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold rounded-lg transition-colors">Calculate for FUTA</a>
+            <a href="/funaab-aggregate-calculator" className="px-4 py-2 bg-gradient-to-r from-emerald-950/60 to-teal-950/60 border border-emerald-500/30 hover:border-emerald-400 text-emerald-300 text-xs font-semibold rounded-lg transition-colors">Calculate for FUNAAB</a>
             <a href="/abu-aggregate-calculator" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold rounded-lg transition-colors">Calculate for ABU</a>
             <a href="/fuhsi-aggregate-calculator" className="px-4 py-2 bg-gradient-to-r from-teal-900/60 to-emerald-900/60 border border-teal-500/30 hover:border-teal-400 text-teal-300 text-xs font-semibold rounded-lg transition-colors">Calculate for FUHSI (Ila-Orangun)</a>
           </div>
@@ -9474,6 +9490,221 @@ ${isSurplus
                   <button
                     type="button"
                     onClick={() => setIsOAUCutoffsModalOpen(false)}
+                    className="px-4 py-1.5 bg-white/10 hover:bg-white/15 text-white rounded-lg transition-all cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* FUNAAB 2026/2027 Pre-Admission Minimum UTME Scores Explorer Modal */}
+        {isFUNAABCutoffsModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="bg-gray-950 border border-emerald-500/30 rounded-3xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="p-4 sm:p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-950/40 via-teal-950/20 to-gray-950 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                    <GraduationCap size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase tracking-widest">
+                        Official Directorate of ICT Services Release • {FUNAAB_SESSION}
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight mt-1">
+                      Federal University of Agriculture, Abeokuta (FUNAAB) Pre-Admission Cut-Off Marks
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      Minimum Acceptable UTME Scores • Available Programmes for 2026/2027 Pre-Admission Screening
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFUNAABCutoffsModalOpen(false)}
+                  className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-all self-end sm:self-auto shrink-0 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Search & Filter Toolbar */}
+              <div className="p-4 sm:p-5 border-b border-white/5 bg-gray-900/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    value={funaabCutoffSearch}
+                    onChange={e => setFunaabCutoffSearch(e.target.value)}
+                    placeholder="Search across all 70 FUNAAB courses (e.g. Computer Science, Accounting, Agriculture, Biotechnology, Mechatronics)..."
+                    className="w-full pl-9 pr-9 py-2.5 bg-black/60 border border-white/10 focus:border-emerald-500/50 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none transition-all"
+                  />
+                  {funaabCutoffSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setFunaabCutoffSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* College Filter Pill Tabs */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => setFunaabCollegeFilter('ALL')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                      funaabCollegeFilter === 'ALL'
+                        ? 'bg-emerald-500 text-black shadow-md'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    All ({FUNAAB_CUTOFFS_2026_2027.length})
+                  </button>
+                  {getFUNAABColleges().map(col => {
+                    const count = FUNAAB_CUTOFFS_2026_2027.filter(c => c.college === col).length;
+                    return (
+                      <button
+                        key={col}
+                        type="button"
+                        onClick={() => setFunaabCollegeFilter(col)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                          funaabCollegeFilter === col
+                            ? 'bg-emerald-500 text-black shadow-md'
+                            : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {col.replace('FUNAAB – ', '')} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Programme Cards Grid */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-2.5">
+                {(() => {
+                  const filtered = FUNAAB_CUTOFFS_2026_2027.filter(item => {
+                    const matchesCollege = funaabCollegeFilter === 'ALL' || item.college === funaabCollegeFilter;
+                    const q = funaabCutoffSearch.toLowerCase().trim();
+                    const matchesSearch =
+                      !q ||
+                      item.programme.toLowerCase().includes(q) ||
+                      item.college.toLowerCase().includes(q);
+                    return matchesCollege && matchesSearch;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-12 text-center text-gray-500 text-xs uppercase font-bold tracking-wider">
+                        No FUNAAB programmes matched your search filters.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {filtered.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 bg-gray-900/70 border border-white/5 hover:border-emerald-500/30 rounded-2xl transition-all flex flex-col justify-between gap-3 group"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase tracking-widest">
+                                    {item.college}
+                                  </span>
+                                  {item.isNew && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[8px] font-black uppercase tracking-widest">
+                                      NEW
+                                    </span>
+                                  )}
+                                  {item.affiliate && item.affiliate !== 'FUNAAB' && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[8px] font-black uppercase tracking-widest">
+                                      {item.affiliate.replace('FUNAAB – ', '')}
+                                    </span>
+                                  )}
+                                </div>
+                                <h4 className="text-sm font-black text-white group-hover:text-emerald-300 transition-colors leading-snug">
+                                  {item.programme}
+                                </h4>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-base sm:text-lg font-black text-emerald-400 tracking-tight">
+                                  {item.minUtme}
+                                </span>
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">
+                                  Min UTME
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Progress bar visual comparison to 400 UTME */}
+                            <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden mt-3">
+                              <div
+                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                                style={{ width: `${(item.minUtme / 400) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[9px]">
+                            <span className="text-gray-400 font-bold">Minimum UTME Benchmark</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const uObj = resolveInstitution("Federal University of Agriculture, Abeokuta");
+                                setTargetUni(uObj);
+                                setUniSearch(uObj.name);
+                                setTargetCourse(item.programme);
+                                setIsFUNAABCutoffsModalOpen(false);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 border border-emerald-500/20 rounded-lg font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              Select Course <ArrowRight size={10} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-white/5 bg-gray-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[9px] text-gray-500 font-bold uppercase tracking-wider shrink-0">
+                <div className="flex items-center gap-2">
+                  <Info size={12} className="text-emerald-400" />
+                  <span>Federal University of Agriculture, Abeokuta (FUNAAB) Pre-Admission Screening {FUNAAB_SESSION}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <a
+                    href="https://admission.unaab.edu.ng"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 hover:underline flex items-center gap-1"
+                  >
+                    FUNAAB Official Portal <ExternalLink size={10} />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setIsFUNAABCutoffsModalOpen(false)}
                     className="px-4 py-1.5 bg-white/10 hover:bg-white/15 text-white rounded-lg transition-all cursor-pointer"
                   >
                     Close

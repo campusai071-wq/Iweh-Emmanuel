@@ -182,6 +182,7 @@ const SchoolCalculatorWrapper = ({ user, setIsAuthModalOpen, setAuthModalMode, s
   else if (schoolSlug === 'unilorin') computedSchoolName = 'University of Ilorin (UNILORIN)';
   else if (schoolSlug === 'unn') computedSchoolName = 'University of Nigeria, Nsukka (UNN)';
   else if (schoolSlug === 'futa') computedSchoolName = 'Federal University of Technology Akure (FUTA)';
+  else if (schoolSlug === 'funaab') computedSchoolName = 'Federal University of Agriculture, Abeokuta (FUNAAB)';
   else if (schoolSlug === 'abu') computedSchoolName = 'Ahmadu Bello University (ABU)';
   else if (schoolSlug === 'fuoye') computedSchoolName = 'Federal University Oye-Ekiti (FUOYE)';
   else if (schoolSlug === 'delsu') computedSchoolName = 'Delta State University (DELSU)';
@@ -1267,6 +1268,7 @@ const AppContent: React.FC = () => {
                     else if (nameLower.includes('ilorin') || nameLower.includes('unilorin')) slug = 'unilorin';
                     else if (nameLower.includes('nsukka') || nameLower.includes('unn') || nameLower.includes('nigeria')) slug = 'unn';
                     else if (nameLower.includes('akure') || nameLower.includes('futa')) slug = 'futa';
+                    else if (nameLower.includes('funaab') || (nameLower.includes('agriculture') && nameLower.includes('abeokuta'))) slug = 'funaab';
                     else if (nameLower.includes('abu') || nameLower.includes('abello')) slug = 'abu';
 
                     if (slug) {
@@ -1302,6 +1304,7 @@ const AppContent: React.FC = () => {
                     else if (nameLower.includes('ilorin') || nameLower.includes('unilorin')) slug = 'unilorin';
                     else if (nameLower.includes('nsukka') || nameLower.includes('unn') || nameLower.includes('nigeria')) slug = 'unn';
                     else if (nameLower.includes('akure') || nameLower.includes('futa')) slug = 'futa';
+                    else if (nameLower.includes('funaab') || (nameLower.includes('agriculture') && nameLower.includes('abeokuta'))) slug = 'funaab';
                     else if (nameLower.includes('abu') || nameLower.includes('abello')) slug = 'abu';
 
                     if (slug) {
@@ -1337,6 +1340,7 @@ const AppContent: React.FC = () => {
                     else if (nameLower.includes('ilorin') || nameLower.includes('unilorin')) slug = 'unilorin';
                     else if (nameLower.includes('nsukka') || nameLower.includes('unn') || nameLower.includes('nigeria')) slug = 'unn';
                     else if (nameLower.includes('akure') || nameLower.includes('futa')) slug = 'futa';
+                    else if (nameLower.includes('funaab') || (nameLower.includes('agriculture') && nameLower.includes('abeokuta'))) slug = 'funaab';
                     else if (nameLower.includes('abu') || nameLower.includes('abello')) slug = 'abu';
                     
                     if (slug) {

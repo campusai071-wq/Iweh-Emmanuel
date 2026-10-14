@@ -258,25 +258,66 @@ export const UNIVERSITIES_DB: Record<string, UniversityData> = {
       "Business Administration", "Political Science", "Educational Management", "Sociology"
     ]
   },
+  "Federal University of Agriculture, Abeokuta": {
+    name: "Federal University of Agriculture, Abeokuta",
+    founded: "1988",
+    motto: "Knowledge for Development",
+    bestKnownFor: "Agriculture (COLAMRUD, COLANIM, COLPLANT, COLVET), Engineering (COLENG), Computing Science, Physical & Biological Sciences, and Food Science & Human Ecology. One of Nigeria's premier specialised agricultural and technology universities.",
+    campusVibe: "Expansive, serene, eco-friendly green campus in Alabata, Abeokuta, Ogun State.",
+    facultyStudentRatio: "1:26",
+    researchOutput: "Very High - International cassava and root crop improvement, organic agriculture, biotechnology, and agricultural mechanisation.",
+    facilities: ["'Nimbe Adedipe Library", "Directorate of University Farms (DUFARMS)", "Biotechnology Centre", "FUNAAB ICT Centre", "Veterinary Teaching Hospital"],
+    scoringSystem: {
+      hasJamb: true,
+      hasPostUtme: false,
+      hasOLevel: true,
+      formula: "funaab_composite",
+      explanation: "FUNAAB Pre-Admission Screening evaluates candidates using minimum departmental UTME cut-off thresholds (160 to 200 marks depending on course) and O'Level points ranking. Physical CBT exam is not required."
+    },
+    courses: [
+      "Agricultural Administration", "Agricultural Economics and Farm Management", "Agricultural Extension and Rural Development",
+      "Animal Breeding and Genetics", "Animal Nutrition", "Animal Physiology", "Animal Production and Health",
+      "Aquaculture and Fisheries Management", "Climate Science and Agricultural Meteorology", "Crop Protection",
+      "Environmental Management and Toxicology", "Forest Resource Management", "Geology", "Horticulture",
+      "Hydrology And Water Resources Management", "Pasture and Range Management", "Plant Breeding and Seed Technology",
+      "Plant Physiology and Crop Production", "Soil Science and Land Management", "Water Resources Management and Agro-meteorology",
+      "Wildlife and Eco-tourism Management", "Water Sanitation and Hygiene", "Biochemistry", "Biotechnology",
+      "Microbiology", "Public Health", "Pure and Applied Botany", "Pure and Applied Zoology", "Science Lab Technology",
+      "Computer Science", "Cyber Security", "Data Science", "Information Communication Technology",
+      "Information Systems", "Information Technology", "Software Engineering", "Clothing & Textile Design",
+      "Food Science and Technology", "Home Science and Management", "Hospitality and Tourism", "Nutrition and Dietetics",
+      "Chemistry", "Geophysics", "Industrial Chemistry", "Mathematics", "Physics", "Statistics",
+      "Agricultural Engineering", "Civil Engineering", "Electrical and Electronics Engineering", "Mechanical Engineering",
+      "Mechatronic Engineering", "Veterinary Medicine", "Accounting", "Banking and Finance", "Business Administration",
+      "Cooperative Studies", "Development Studies", "Economics", "Entrepreneurial Studies", "Library and Information Science",
+      "Agriculture (FCAIB)", "Home Science and Management (FCAIB)",
+      "Agricultural Engineering & Technology (OYSCATECH)", "Agriculture (OYSCATECH)", "Chemistry (OYSCATECH)",
+      "Computer Science (OYSCATECH)", "Forestry and Wildlife Management (OYSCATECH)", "Microbiology (OYSCATECH)", "Statistics (OYSCATECH)"
+    ]
+  },
   "University of Benin": {
     name: "University of Benin",
     founded: "1970",
     motto: "Knowledge for Service",
-    bestKnownFor: "Engineering, Medicine, Pharmacy, and Law. Known as UNIBEST / Great UNIBEN.",
-    campusVibe: "Vibrant, historic, and academically intense. Located in Ugbowo, Benin City.",
+    bestKnownFor: "Engineering, Medicine, Pharmacy, Law, and Dentistry. Known as UNIBEST / Great UNIBEN.",
+    campusVibe: "Vibrant, historic, and academically intense. Located in Ugbowo, Benin City, Edo State.",
     facultyStudentRatio: "1:32",
-    researchOutput: "High - Renowned for petroleum engineering, pharmacognosy, and medical specialties.",
-    facilities: ["John Harris Library", "UBTH Teaching Hospital", "Center of Excellence in Geosciences"],
+    researchOutput: "High - Renowned for petroleum engineering, pharmacognosy, UBTH clinical research, and legal scholarship.",
+    facilities: ["John Harris Library", "UBTH Teaching Hospital", "Center of Excellence in Geosciences", "CEEC Entrance Examination Complex"],
     scoringSystem: {
       hasJamb: true,
       hasPostUtme: true,
       hasOLevel: false,
-      explanation: "UNIBEN uses a 50:50 formula: (JAMB Score / 8) + (Post-UTME / 2). Total aggregate is out of 100%."
+      formula: "50:50",
+      explanation: "UNIBEN uses a 50:50 composite formula: (JAMB Score / 8) + (Post-UTME Score / 2). Total aggregate is out of 100%. Minimum UTME eligibility is 200 marks. Post-UTME pass mark is 50%. Medicine and Surgery (MBBS) strictly mandates 5 O'Level credits in ONE single sitting. Physically challenged & international candidates are exempted from Post-UTME."
     },
     courses: [
       "Medicine and Surgery", "Pharmacy", "Law", "Dentistry", "Nursing Science", "Mechanical Engineering",
-      "Civil Engineering", "Petroleum Engineering", "Electrical/Electronics Engineering", "Computer Science",
-      "Accounting", "Economics", "Business Administration", "Medical Laboratory Science", "Physiotherapy"
+      "Civil Engineering", "Petroleum Engineering", "Electrical/Electronics Engineering", "Chemical Engineering",
+      "Production Engineering", "Computer Engineering", "Computer Science", "Accounting", "Economics",
+      "Business Administration", "Banking and Finance", "Medical Laboratory Science", "Physiotherapy",
+      "Radiography and Radiation Science", "Optometry", "Microbiology", "Biochemistry", "Biotechnology",
+      "Geology", "Pure and Applied Mathematics", "Industrial Chemistry", "Public Administration", "Mass Communication"
     ]
   },
   "Delta State University": {

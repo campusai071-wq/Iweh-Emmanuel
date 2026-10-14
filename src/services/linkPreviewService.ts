@@ -23,6 +23,7 @@ export const DEFAULT_LINK_PREVIEWS: LinkPreviewItem[] = [
   { path: '/oau-aggregate-calculator', title: 'OAU Calculator', subtitle: 'Ife', imageUrl: '' },
   { path: '/uniben-aggregate-calculator', title: 'UNIBEN Calculator', subtitle: 'Benin', imageUrl: '' },
   { path: '/futa-aggregate-calculator', title: 'FUTA Calculator', subtitle: 'Akure', imageUrl: '' },
+  { path: '/funaab-aggregate-calculator', title: 'FUNAAB Calculator', subtitle: 'Abeokuta', imageUrl: '' },
   { path: '/cutoff-calculator', title: 'Cutoff & Aggregate Finder', subtitle: 'Requirements', imageUrl: '' },
   { path: '/syllabus', title: 'Syllabus Finder', subtitle: 'JAMB 2026', imageUrl: '' },
   { path: '/e-syllabus', title: 'JAMB E-Syllabus', subtitle: 'Official Syllabus', imageUrl: '' },

@@ -57,6 +57,16 @@ const BASELINE_RELEASES: Record<string, Partial<SchoolReleaseStatus>> = {
     citationUrl: "https://myschoolgist.com/news/ui-post-utme/",
     eligibilityText: "Candidates who chose the university as first choice and scored required minimum JAMB mark."
   },
+  "Federal University of Agriculture, Abeokuta": {
+    isOut: true,
+    statusText: "Registration Active",
+    details: "FUNAAB 2026/2027 Pre-Admission Screening & Direct Entry exercise active on admission.unaab.edu.ng. Direct Entry Admission List uploaded. Cut-off scores range from 160 to 200 marks.",
+    portalLink: "https://admission.unaab.edu.ng",
+    cutoffScore: "160 - 200",
+    registrationFee: 2000,
+    citationUrl: "https://admission.unaab.edu.ng",
+    eligibilityText: "Candidates who chose FUNAAB as first choice on JAMB CAPS and scored the required departmental minimum (160 for Agriculture/EDS, 180 for Sciences/Food, 200 for Engineering/Computing/Vet/Accounting)."
+  },
   "Obafemi Awolowo University": {
     isOut: true,
     statusText: "Registration Active",
@@ -1118,6 +1128,7 @@ export const findMatchingSchoolRelease = (message: string): { schoolName: string
 
   const aliases: Record<string, string> = {
     'futa': 'Federal University of Technology, Akure',
+    'funaab': 'Federal University of Agriculture, Abeokuta',
     'ui': 'University of Ibadan',
     'unilag': 'University of Lagos',
     'uniben': 'University of Benin',

@@ -12,6 +12,7 @@ import { YABATECH_CUTOFFS_2026_2027, YABATECH_SESSION, YABATECH_INSTITUTION_NAME
 import { EAUED_CUTOFFS_2026_2027, EAUED_SESSION, EAUED_INSTITUTION_NAME } from '../data/eauedCutoffs2026_2027';
 import { OAUSTECH_CUTOFFS_2026_2027, OAUSTECH_SESSION, OAUSTECH_INSTITUTION_NAME } from '../data/oaustechCutoffs2026_2027';
 import { UNIOSUN_CUTOFFS_2026_2027, UNIOSUN_SESSION, UNIOSUN_INSTITUTION_NAME, getUNIOSUNCutoffForCandidate } from '../data/uniosunCutoffs2026_2027';
+import { FUNAAB_CUTOFFS_2026_2027, FUNAAB_SESSION, FUNAAB_INSTITUTION_NAME, getFUNAABCutoffForCandidate } from '../data/funaabCutoffs2026_2027';
 import { isCourseFuzzyMatch } from './courseMatcher';
 
 export interface OfficialCutoffResult {
@@ -478,6 +479,28 @@ export function getOfficialInstitutionCutoff(
     }
   }
 
+  // 15. FUNAAB (Federal University of Agriculture, Abeokuta)
+  if (nUni.includes('funaab') || (nUni.includes('agriculture') && nUni.includes('abeokuta'))) {
+    const funaabRes = getFUNAABCutoffForCandidate(rawCourse);
+    if (funaabRes && funaabRes.programme) {
+      return {
+        institution: FUNAAB_INSTITUTION_NAME,
+        course: funaabRes.programme.programme,
+        cutoff: funaabRes.minUtme,
+        departmentalCutoff: `${funaabRes.minUtme} marks`,
+        institutionalCutoff: "160",
+        cutoffIsOfficial: true,
+        cutoffType: 'official_departmental_cutoff',
+        cutoffSource: 'Official 2026/2027 Pre-Admission Screening Release (FUNAAB Directorate of ICT Services)',
+        cutoffYear: FUNAAB_SESSION,
+        cutoffQuotaUsed: 'Minimum Acceptable UTME Score Benchmark',
+        isCatchment: false,
+        isELDS: false,
+        explanation: `Official FUNAAB 2026/2027 Pre-Admission Screening Cutoff for ${funaabRes.programme.programme}: Minimum ${funaabRes.minUtme} UTME Marks (${funaabRes.programme.college} College${funaabRes.programme.affiliate !== 'FUNAAB' ? ` • ${funaabRes.programme.affiliate}` : ''}${funaabRes.programme.isNew ? ' • New Programme' : ''})`
+      };
+    }
+  }
+
   return null;
 }
 
@@ -558,6 +581,11 @@ export function getOfficialInstitutionProgrammes(university: string): string[] |
   // 14. UNIOSUN
   if (nUni.includes('uniosun') || (nUni.includes('osun') && (nUni.includes('state') || nUni.includes('university')))) {
     return Array.from(new Set(UNIOSUN_CUTOFFS_2026_2027.map(p => p.programme))).sort();
+  }
+
+  // 15. FUNAAB
+  if (nUni.includes('funaab') || (nUni.includes('agriculture') && nUni.includes('abeokuta'))) {
+    return Array.from(new Set(FUNAAB_CUTOFFS_2026_2027.map(p => p.programme))).sort();
   }
 
   return null;
