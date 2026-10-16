@@ -79,6 +79,7 @@ import { AdminState, NewsItem, UserRole } from '../types';
 import { MessageSquare, X, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { slugify, triggerBrowserNotification } from '../services/utils';
+import { GoogleOneTapPrompt } from './GoogleOneTapPrompt';
 
 // Helper to convert Firestore Timestamps, JSON timestamp objects or date strings/numbers to ms
 const toMs = (val: any): number => {
@@ -1777,6 +1778,7 @@ const AppContent: React.FC = () => {
         <CookieConsent />
         <InstallPrompt />
         <Tour isOpen={isTourOpen} onClose={() => setIsTourOpen(false)} />
+        <GoogleOneTapPrompt user={user} isAuthLoading={isAuthLoading} />
       </Suspense>
     </div>
   );

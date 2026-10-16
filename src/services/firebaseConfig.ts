@@ -34,9 +34,12 @@ const resolvedFirebaseConfig = localFirebaseConfig || {
   firestoreDatabaseId: getEnvVar('VITE_FIREBASE_DATABASE_ID') || (firebaseConfig as any)?.firestoreDatabaseId || "(default)"
 };
 
+export const GOOGLE_CLIENT_ID = getEnvVar('VITE_GOOGLE_CLIENT_ID') || "839188766880-3mp5ipa6d34vl7kics86rnhgk0sg6fh1.apps.googleusercontent.com";
+
 export const MASTER_CONFIG = {
   GEMINI_API_KEY: getEnvVar('VITE_GEMINI_API_KEY') || getEnvVar('GEMINI_API_KEY') || "", 
   FLUTTERWAVE_PUBLIC_KEY: getEnvVar('VITE_FLUTTERWAVE_PUBLIC_KEY') || "",
+  GOOGLE_CLIENT_ID,
   FIREBASE: resolvedFirebaseConfig
 };
 export const hasLocalFirebase = !!localFirebaseConfig;

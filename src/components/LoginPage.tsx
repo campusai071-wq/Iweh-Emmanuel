@@ -16,6 +16,7 @@ import { initializeUserProfile, trackReferral } from '../services/userService';
 import { trackSignUp } from '../services/analytics';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { initGoogleOneTap } from '../services/googleOneTapService';
 
 interface LoginPageProps {
   user?: UserProfile | null;
@@ -64,7 +65,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ user, onSuccess }) => {
     } catch (e) {
       setIsIframe(true);
     }
-  }, []);
+
+    if (!user?.uid) {
+      initGoogleOneTap({
+        onSuccess: (email) => handleAuthDone(email)
+      });
+    }
+  }, [user]);
 
   const handleAuthDone = (userEmail: string, userRole?: UserRole) => {
     if (onSuccess) {

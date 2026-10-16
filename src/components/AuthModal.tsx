@@ -11,6 +11,7 @@ import { trackReferral } from '../services/userService';
 import { trackSignUp } from '../services/analytics';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { initGoogleOneTap } from '../services/googleOneTapService';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -45,7 +46,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
     } catch (e) {
       setIsIframe(true);
     }
-  }, []);
+
+    if (isOpen) {
+      initGoogleOneTap({
+        onSuccess: (email) => {
+          onSuccess(email);
+          onClose();
+        }
+      });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
