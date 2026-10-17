@@ -138,54 +138,45 @@ export const getVerdictCategory = (record: {
   predictedProbability?: number; 
   departmentalCutoff?: any; 
   detailedStrategy?: string;
+  aggregateScore?: number | string;
+  isGuest?: boolean;
 }): 'high' | 'borderline' | 'low' | 'disqualified' => {
   const v = (record.verdict || '').toLowerCase();
   const strat = (record.detailedStrategy || '').toLowerCase();
-  const prob = record.predictedProbability;
+  const prob = typeof record.predictedProbability === 'number' ? record.predictedProbability : undefined;
+  const aggNum = typeof record.aggregateScore === 'number' 
+    ? record.aggregateScore 
+    : parseFloat(record.aggregateScore as string) || 0;
   
-  if (
-    prob === 0 ||
+  // Real disqualification requires explicit failure of mandatory subjects, explicit ineligibility, or invalid combination
+  const isExplicitlyDisqualified = 
     v.includes('disqualif') || 
     v.includes('invalid subject') || 
     v.includes('ineligible') || 
-    strat.includes('disqualif') ||
     strat.includes('invalid subject combination') ||
+    strat.includes('automatic system disqualification') ||
     strat.includes('admission probability:** **0%') ||
-    strat.includes('probability: 0%') ||
-    (record.departmentalCutoff === 'N/A' && !strat.includes('audited directly against the official'))
-  ) {
+    (strat.includes('probability: 0%') && !record.isGuest && !v.includes('math only'));
+
+  if (isExplicitlyDisqualified) {
     return 'disqualified';
   }
   
-  if (
-    v.includes('admit') || 
-    v.includes('high') || 
-    v.includes('safe') || 
-    v.includes('strong') || 
-    v.includes('excellent') || 
-    (typeof prob === 'number' && prob >= 70)
-  ) {
+  // If user has a calculated probability > 0
+  if (prob !== undefined && prob > 0) {
+    if (prob >= 70 || v.includes('strong') || v.includes('safe') || v.includes('admit')) return 'high';
+    if (prob >= 40 || v.includes('border') || v.includes('compet')) return 'borderline';
+    return 'low';
+  }
+
+  // Fallback for guest audits (where prob is 0/uncomputed) or pending cutoffs
+  if (v.includes('admit') || v.includes('high') || v.includes('safe') || v.includes('strong') || v.includes('excellent') || aggNum >= 65) {
     return 'high';
   }
-  
-  if (
-    v.includes('border') || 
-    v.includes('compet') || 
-    v.includes('medium') || 
-    v.includes('moderate') || 
-    v.includes('fair') || 
-    (typeof prob === 'number' && prob >= 40 && prob < 70)
-  ) {
+  if (v.includes('border') || v.includes('compet') || v.includes('medium') || v.includes('moderate') || v.includes('fair') || aggNum >= 50) {
     return 'borderline';
   }
-  
-  if (
-    v.includes('risk') || 
-    v.includes('low') || 
-    v.includes('unlikely') || 
-    v.includes('not') || 
-    (typeof prob === 'number' && prob > 0 && prob < 40)
-  ) {
+  if (v.includes('risk') || v.includes('low') || v.includes('unlikely') || aggNum > 0) {
     return 'low';
   }
 
@@ -238,7 +229,29 @@ const sanitizeRecord = (
     }
   }
 
-  const cleanDeptCutoff = isDisqualified ? 'N/A' : formatSingleCleanCutoff(effectiveCutoff, data.aggregateScore);
+  let rawAgg = typeof data.aggregateScore === 'number' ? data.aggregateScore : parseFloat(data.aggregateScore as string) || 0;
+  
+  // Sanitize OAU records that got distorted to 100% due to state leak when JAMB score was moderate (e.g. 240)
+  const normUni = (data.university || '').toLowerCase();
+  if ((normUni.includes('awolowo') || normUni.includes('oau')) && data.jambScore) {
+    const j = parseFloat(data.jambScore) || 0;
+    const p = parseFloat(data.postUtmeScore) || 0;
+    if (rawAgg === 100 && j < 350) {
+      const pNorm = p > 40 ? (Math.min(100, p) / 100 * 40) : Math.min(40, p);
+      let olevelPts = 8.6;
+      if (Array.isArray(data.subjects) && data.subjects.length > 0) {
+        const gradeMap: Record<string, number> = { 'A1': 2.0, 'B2': 1.8, 'B3': 1.6, 'C4': 1.4, 'C5': 1.2, 'C6': 1.0 };
+        olevelPts = data.subjects.reduce((sum: number, s: any) => sum + (gradeMap[s.grade] || 1.4), 0);
+      }
+      rawAgg = parseFloat(((j / 8) + pNorm + Math.min(10, olevelPts)).toFixed(2));
+    }
+  }
+
+  const cleanDeptCutoff = isDisqualified ? 'N/A' : formatSingleCleanCutoff(effectiveCutoff, rawAgg);
+
+  const cutoffNumMatch = String(effectiveCutoff || '').match(/(\d+(\.\d+)?)/);
+  const cutoffNum = cutoffNumMatch ? parseFloat(cutoffNumMatch[1]) : 0;
+  const cleanScoreDiff = cutoffNum > 0 ? parseFloat((rawAgg - cutoffNum).toFixed(2)) : (data.scoreDiff || 0);
 
   const isActuallyGuest = Boolean(
     isGuest || 
@@ -261,7 +274,7 @@ const sanitizeRecord = (
     isGuest: isActuallyGuest,
     university: data.university || 'Target University',
     course: data.course || 'Target Course',
-    aggregateScore: data.aggregateScore ?? 0,
+    aggregateScore: rawAgg,
     jambScore: data.jambScore,
     postUtmeScore: data.postUtmeScore,
     verdict: finalVerdict,
@@ -274,7 +287,7 @@ const sanitizeRecord = (
     cutoffSource: data.cutoffSource,
     cutoffYear: data.cutoffYear,
     cutoffQuotaUsed: isDisqualified ? 'Disqualified (Ineligible)' : data.cutoffQuotaUsed,
-    scoreDiff: isDisqualified ? 0 : data.scoreDiff,
+    scoreDiff: isDisqualified ? 0 : cleanScoreDiff,
     stateOfOrigin: data.stateOfOrigin,
     isELDSState: data.isELDSState,
     isCatchmentState: data.isCatchmentState,
@@ -683,10 +696,10 @@ const PredictionDetailsModal: React.FC<PredictionDetailsModalProps> = ({
             </div>
             <div className="p-2.5 rounded-xl bg-white dark:bg-gray-950 border border-gray-200/60 dark:border-gray-800 shadow-sm">
               <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                {isGuestMode ? 'Audience Type' : 'Credits Remaining'}
+                {isGuestMode ? 'Audience Type' : isAllMode ? 'Platform Scope' : 'Credits Remaining'}
               </p>
               <p className="text-sm font-black text-amber-600 dark:text-amber-400">
-                {isGuestMode ? 'Anonymous Guests' : `${userProfile?.scholarCredits || 0} SP`}
+                {isGuestMode ? 'Anonymous Guests' : isAllMode ? 'All Platform Scholars' : `${userProfile?.scholarCredits || 0} SP`}
               </p>
             </div>
           </div>

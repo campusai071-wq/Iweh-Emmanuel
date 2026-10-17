@@ -315,10 +315,11 @@ const calculateAggregateScore = (
     // Official OAU 50:40:10 Structure:
     // - JAMB: 50% max (JAMB / 8)
     // - Post-UTME: 40% max (Direct exam score out of 40 marks: e.g. 28/40 = 28.00 pts)
+    // - If student enters percentage > 40 (e.g. 70%), normalize to 40-point scale: (70 / 100) * 40 = 28.0 pts
     // - O'Level: 10% max (5 subjects evaluated on 10-point scale: sum ÷ 5 = max 10.0 pts)
-    const postCapped = Math.min(Math.max(0, post), 40);
+    const postNormalized = post > 40 ? (Math.min(100, post) / 100 * 40) : Math.min(Math.max(0, post), 40);
     const olevelCapped = Math.min(Math.max(0, olevelTotal), 10);
-    return (jamb / 8) + postCapped + olevelCapped;
+    return (jamb / 8) + postNormalized + olevelCapped;
   }
   if (formula === '50:50' || formula === '50/50' || desc.includes('50:50') || desc.includes('50/50') || (desc.includes('50%') && desc.includes('50%'))) {
     return (jamb / 8) + (post / 2);
@@ -2988,11 +2989,25 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
         setAiResult(null);
       }
 
+      // Ensure forward mode is active for full audit
+      setCalcMode('forward');
+
+      // Compute authoritative aggregate directly from active inputs to prevent state lag or direct mode override
+      const rawFreshTotal = calculateAggregateScore(
+        parseFloat(jambScore) || 0,
+        cleanPostUtmeScore,
+        activeOlevelPoints,
+        activeUni.name,
+        resolvedScoringSystem,
+        oauScoreScale
+      ) - (sittings > 1 ? 2 : 0);
+      const authoritativeAggregate = parseFloat(Math.min(100, Math.max(0, rawFreshTotal)).toFixed(2));
+
       // Deterministically enforce official stamped cutoffs
       const officialCutoffMatch = getOfficialInstitutionCutoff(targetUni?.name || activeUni.name, activeCourse, stateOfOrigin);
       if (officialCutoffMatch) {
         const officialCutoff = officialCutoffMatch.cutoff;
-        const diff = parseFloat((aggregateScore - officialCutoff).toFixed(2));
+        const diff = parseFloat((authoritativeAggregate - officialCutoff).toFixed(2));
         const baseProb = diff >= 6 ? 96 : diff >= 3 ? 90 : diff >= 0 ? 82 : diff >= -2 ? 65 : diff >= -5 ? 45 : 20;
         const verdict = diff >= 0 ? "Strong / Above Cut-off" : (diff >= -2.5 ? "Borderline / Competitive Catchment" : "Below Cut-off Line");
 
@@ -3002,7 +3017,7 @@ const CutoffCalculator: React.FC<CutoffCalculatorProps> = ({
 - **Admission Probability:** **${baseProb}%** (${isSurplus ? `Surplus of +${diff}% above departmental benchmark` : `${Math.abs(diff)}% deficit vs departmental benchmark`})
 
 ### 2. The Reality Check
-Your calculated aggregate score of **${aggregateScore}%** was audited directly against the official **${officialCutoffMatch.institution}** **${officialCutoffMatch.cutoffQuotaUsed}** departmental cut-off mark of **${officialCutoff}%** for the **${officialCutoffMatch.cutoffYear}** academic session. 
+Your calculated aggregate score of **${authoritativeAggregate}%** was audited directly against the official **${officialCutoffMatch.institution}** **${officialCutoffMatch.cutoffQuotaUsed}** departmental cut-off mark of **${officialCutoff}%** for the **${officialCutoffMatch.cutoffYear}** academic session. 
 
 **Official Policy Details:** ${officialCutoffMatch.explanation}
 
@@ -3115,7 +3130,7 @@ ${isSurplus
         trackAdmissionAnalysis({
           university: targetUni.name,
           course: activeCourse || courseSearch || targetCourse,
-          aggregate_score: parseFloat(aggregateScore.toString()) || 0,
+          aggregate_score: authoritativeAggregate,
           verdict: finalVerdict,
           probability: finalProbability,
           is_official_cutoff: !!result.cutoffIsOfficial,
@@ -3133,7 +3148,7 @@ ${isSurplus
         isGuest: !user,
         university: activeUni.name,
         course: activeCourse,
-        aggregateScore: parseFloat(aggregateScore.toString()) || 0,
+        aggregateScore: authoritativeAggregate,
         jambScore: parseFloat(jambScore) || 0,
         postUtmeScore: cleanPostUtmeScore,
         usesPostUtme: effectiveUsesPostUtme,
@@ -3151,7 +3166,7 @@ ${isSurplus
         cutoffSource: user ? (result?.cutoffSource || officialCutoffMatch?.cutoffSource || '') : '',
         cutoffYear: user ? (result?.cutoffYear || officialCutoffMatch?.cutoffYear || '2026/2027') : '',
         cutoffQuotaUsed: user ? (result?.cutoffQuotaUsed || (isELDSState ? 'ELDS Quota' : (isCatchmentState ? `Catchment Quota (${stateOfOrigin})` : 'National Merit Quota'))) : 'N/A',
-        scoreDiff: user ? (typeof result?.scoreDiff === 'number' ? result.scoreDiff : (officialCutoffMatch ? parseFloat((aggregateScore - officialCutoffMatch.cutoff).toFixed(2)) : 0)) : 0,
+        scoreDiff: user ? (typeof result?.scoreDiff === 'number' ? result.scoreDiff : (officialCutoffMatch ? parseFloat((authoritativeAggregate - officialCutoffMatch.cutoff).toFixed(2)) : 0)) : 0,
         predictionDate: new Date().toISOString().split('T')[0],
         detailedStrategy: user ? (result?.detailedStrategy || '') : '',
         formulaExplanation: formulaText || '',
@@ -3167,7 +3182,7 @@ ${isSurplus
         jambScore,
         postUtmeScore: effectiveUsesPostUtme ? postUtmeScore : '',
         stateOfOrigin,
-        aggregateScore,
+        aggregateScore: authoritativeAggregate,
         isAR,
         isPostUtmePending: effectiveUsesPostUtme ? isPostUtmePending : false,
         timestamp: Date.now(),
@@ -3231,7 +3246,7 @@ ${isSurplus
             subjects: subjects.map(s => ({ name: s.name, grade: s.grade })),
             formula: formulaText,
             computedDiscount: computedDiscount,
-            aggregateScore: aggregateScore,
+            aggregateScore: authoritativeAggregate,
             jambScore: jambScore,
             postUtmeScore: postUtmeScore,
             verdict: result?.verdict || 'Borderline',
@@ -3255,7 +3270,7 @@ ${isSurplus
             subjects: subjects.map(s => ({ name: s.name, grade: s.grade })),
             formula: formulaText,
             computedDiscount: computedDiscount,
-            aggregateScore: aggregateScore,
+            aggregateScore: authoritativeAggregate,
             jambScore: jambScore,
             postUtmeScore: postUtmeScore,
             verdict: 'Guest Calculation',
@@ -9448,6 +9463,7 @@ ${isSurplus
                                       if (['osun', 'oyo', 'ogun', 'ondo', 'ekiti', 'lagos'].includes(oauModalStateFilter)) {
                                         setStateOfOrigin(oauModalStateFilter.charAt(0).toUpperCase() + oauModalStateFilter.slice(1));
                                       }
+                                      setCalcMode('forward');
                                       setIsOAUCutoffsModalOpen(false);
                                       window.scrollTo({ top: 400, behavior: 'smooth' });
                                     }}
@@ -9673,6 +9689,7 @@ ${isSurplus
                                 setTargetUni(uObj);
                                 setUniSearch(uObj.name);
                                 setTargetCourse(item.programme);
+                                setCalcMode('forward');
                                 setIsFUNAABCutoffsModalOpen(false);
                               }}
                               className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 border border-emerald-500/20 rounded-lg font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
