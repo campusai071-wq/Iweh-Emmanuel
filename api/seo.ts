@@ -189,6 +189,31 @@ export async function injectSEO(html: string, reqPath: string, adminDb: any, dbI
   return result;
 }
 
+function getCustomImageUrlForPath(path: string, siteDomain: string): string {
+  const clean = path.replace(/\/+$/, '') || '/';
+  if (clean === '/') return `${siteDomain}/assets/aistudio/20260926_064311_0000_ae959d53.png`;
+  if (clean === '/calculator') return `${siteDomain}/assets/aistudio/20260926_165355_0000_6b1fccc4.png`;
+  if (clean === '/login') return `${siteDomain}/assets/aistudio/20260926_170625_0000_4d51196b.png`;
+  if (clean === '/news') return `${siteDomain}/assets/aistudio/Ui_20260926_172502_0000_942cd741.png`;
+  if (clean === '/admission-2026-summary' || clean === '/admission-summary' || clean === '/admission-report') {
+    return `${siteDomain}/assets/aistudio/Ui_20260926_172731_0000_22824e3e.png`;
+  }
+  if (clean === '/cutoff-calculator') return `${siteDomain}/assets/aistudio/Ui_20260926_172809_0000_bdd29de8.png`;
+  if (clean === '/directory') return `${siteDomain}/assets/aistudio/Ui_20260926_172848_0000_dafc826e.png`;
+  if (clean.endsWith('-aggregate-calculator')) {
+    const s = clean.replace(/^\//, '').replace(/-aggregate-calculator$/, '').toLowerCase();
+    if (s === 'unilag') return `${siteDomain}/assets/aistudio/Ui_20260926_170816_0000_46783bf5.png`;
+    if (s === 'ui') return `${siteDomain}/assets/aistudio/Ui_20260926_170925_0000_628937b8.png`;
+    if (s === 'lasu') return `${siteDomain}/assets/aistudio/Ui_20260926_171331_0000_cf11025e.png`;
+    if (s === 'oau') return `${siteDomain}/assets/aistudio/Ui_20260926_171546_0000_09e29f43.png`;
+    if (s === 'uniben') return `${siteDomain}/assets/aistudio/Ui_20260926_172043_0000_8d488f73.png`;
+    if (s === 'futa') return `${siteDomain}/assets/aistudio/Ui_20260926_172247_0000_74ebec34.png`;
+    if (s === 'funaab') return `${siteDomain}/assets/aistudio/Ui_20260926_172328_0000_856260b2.png`;
+    return `${siteDomain}/assets/aistudio/20260926_165355_0000_6b1fccc4.png`;
+  }
+  return `${siteDomain}/assets/aistudio/20260926_064311_0000_ae959d53.png`;
+}
+
 export function generateFastSEOFallback(html: string, reqPath: string): string {
   const siteDomain = "https://campusai.com.ng";
   const rawPath = reqPath ? reqPath.split('?')[0] : '/';
@@ -198,7 +223,7 @@ export function generateFastSEOFallback(html: string, reqPath: string): string {
   let title = "JAMB 2026 Aggregate Calculator & Admission Portal | CampusAI";
   let description = "Nigeria's premier academic platform: JAMB CBT exam simulator, 2026 university aggregate calculators, cutoff marks, syllabus explorer, and admission studio.";
   let h1Text = "JAMB 2026 Aggregate Calculator & Admission Portal";
-  let imageUrl = `${siteDomain}/og-image.png`;
+  let imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
   let isArticle = false;
 
   if (cleanPath.startsWith('/news/')) {
@@ -227,13 +252,19 @@ export function generateFastSEOFallback(html: string, reqPath: string): string {
     title = "Official 2026 JAMB & University Aggregate Calculator | CampusAI";
     description = "Calculate your 2026 university aggregate score automatically. Supports UNILAG, LASU, UI, OAU, UNIBEN, FUTA, and all accredited Nigerian institutions.";
     h1Text = "Official 2026 JAMB & University Aggregate Calculator";
-    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Aggregate Score Calculator")}&category=${encodeURIComponent("CampusAI Tools")}`;
+    imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
+  } else if (cleanPath === '/admission-2026-summary' || cleanPath === '/admission-summary' || cleanPath === '/admission-report') {
+    title = "2026/2027 Admission Cycle Review & 2027 Forecast Blueprint | CampusAI";
+    description = "Investigative review of the 2026 admission exercise: 16-year age policy reversal, JAMB CAPS automation, catchment quotas, and an actionable roadmap for 2027 aspirants.";
+    h1Text = "Nigeria University Admission 2026/2027 Summary & 2027 Forecast";
+    imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
+    isArticle = true;
   } else if (cleanPath.endsWith('-aggregate-calculator')) {
     const schoolSlug = cleanPath.replace(/^\//, '').replace(/-aggregate-calculator$/, '').toUpperCase();
     title = `${schoolSlug} Aggregate Score Calculator 2026 | CampusAI`;
     description = `Calculate your 2026 ${schoolSlug} post-UTME screening aggregate score automatically using verified institutional admission weighting formulas.`;
     h1Text = `${schoolSlug} Aggregate Score Calculator 2026`;
-    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent(`${schoolSlug} Agg. Calculator`)}&category=${encodeURIComponent(schoolSlug)}`;
+    imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
   }
 
   // Ensure canonical tag is strictly updated regardless of existing attributes
@@ -294,7 +325,7 @@ async function generateInjectedSEO(html: string, reqPath: string, adminDb: any, 
 
   let title = "JAMB 2026 Aggregate Calculator & Admission Portal | CampusAI";
   let description = "Calculate your 2026 university aggregate score, check departmental cut-off marks, and verify admission requirements across Nigerian institutions.";
-  let imageUrl = `${siteDomain}/og-image.png`;
+  let imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
   let isArticle = false;
   let articleAuthor = "Emmanuel Iweh";
   let articleSection = "JAMB News";
@@ -779,7 +810,7 @@ async function generateInjectedSEO(html: string, reqPath: string, adminDb: any, 
   } else if (cleanPath === '/calculator') {
     title = "Official 2026 JAMB & University Aggregate Calculator | CampusAI";
     description = "Calculate your 2026 university aggregate score automatically. Supports UNILAG, LASU, UI, OAU, UNIBEN, FUTA, and all accredited Nigerian institutions.";
-    imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent("Aggregate Score Calculator")}&category=${encodeURIComponent("CampusAI Tools")}`;
+    imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
     jsonLd = {
       "@context": "https://schema.org",
       "@type": "WebApplication",
@@ -806,12 +837,55 @@ async function generateInjectedSEO(html: string, reqPath: string, adminDb: any, 
         </div>
       </section>
     `;
+  } else if (cleanPath === '/admission-2026-summary' || cleanPath === '/admission-summary' || cleanPath === '/admission-report') {
+    title = "2026/2027 Admission Cycle Review & 2027 Forecast Blueprint | CampusAI";
+    description = "Investigative review of the 2026 admission exercise: 16-year age policy reversal, JAMB CAPS automation, catchment quotas, and an actionable roadmap for 2027 aspirants.";
+    imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
+    isArticle = true;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Nigeria University Admission 2026/2027 Review & 2027 Forecast",
+      "description": description,
+      "image": [imageUrl],
+      "author": {
+        "@type": "Person",
+        "name": "Emmanuel Iweh"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "CampusAI Nigeria",
+        "logo": {
+          "@type": "ImageObject",
+          "url": `${siteDomain}/icon-192.png`
+        }
+      },
+      "datePublished": "2026-10-17T08:00:00Z",
+      "dateModified": new Date().toISOString()
+    };
+
+    serverBodyHtml = `
+      <article style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: 'Inter', system-ui, sans-serif;">
+        <h1 style="font-size: 2.25rem; font-weight: 900; color: #0f172a; margin-bottom: 12px; line-height: 1.25;">Nigeria University Admission 2026/2027 Review &amp; 2027 Forecast</h1>
+        <p style="font-size: 1.1rem; color: #475569; margin-bottom: 24px; line-height: 1.6;">A definitive investigative analysis of the 2026 Nigerian university admission exercise and the official roadmap for 2027 aspirants.</p>
+        <div style="padding: 24px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; margin-bottom: 24px;">
+          <h3 style="font-size: 1.2rem; font-weight: 800; color: #0f172a; margin-bottom: 8px;">Key 2026 Admission Realities:</h3>
+          <ul style="line-height: 1.8; color: #334155;">
+            <li><strong>Official Admission Age Baseline:</strong> Formalized at 16 years by Education Minister Dr. Tunji Alausa (with 80% aggregate waiver for underage exceptional talents).</li>
+            <li><strong>Central Admission Processing System (CAPS):</strong> 100% digital enforcement. Zero tolerance for unapproved off-portal university lists.</li>
+            <li><strong>Statutory Federal Quota:</strong> 45% National Merit, 35% Catchment Area, 20% Educationally Less Developed States (ELDS).</li>
+            <li><strong>Competitive Cutoff Benchmark:</strong> Medicine, Nursing, Law, and Tech cutoffs surged to record highs across first-choice federal universities.</li>
+          </ul>
+        </div>
+        <p><a href="${siteDomain}/calculator" style="display: inline-block; background-color: #0284c7; color: #ffffff; padding: 12px 24px; border-radius: 12px; font-weight: 700; text-decoration: none;">Calculate Your 2026/2027 Aggregate Score →</a></p>
+      </article>
+    `;
   } else if (cleanPath.endsWith('-aggregate-calculator')) {
     const schoolSlug = cleanPath.split('/').pop()?.replace("-aggregate-calculator", "").toUpperCase();
     if (schoolSlug) {
       title = `${schoolSlug} 2026 Aggregate Calculator | CampusAI`;
       description = `Calculate your 2026 ${schoolSlug} aggregate score and check your admission chances instantly. Use the official formula, cutoff marks, and catchment area rules for ${schoolSlug}.`;
-      imageUrl = `${siteDomain}/api/og-image?title=${encodeURIComponent(`${schoolSlug} Agg. Calculator`)}&category=${encodeURIComponent(`${schoolSlug}`)}`;
+      imageUrl = getCustomImageUrlForPath(cleanPath, siteDomain);
       jsonLd = {
         "@context": "https://schema.org",
         "@type": "WebApplication",

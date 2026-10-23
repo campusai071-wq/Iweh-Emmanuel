@@ -51,6 +51,7 @@ const ChatPage = lazyWithRetry(() => import('./ChatPage'));
 const NotFound = lazyWithRetry(() => import('./NotFound'));
 const FeedbackModal = lazyWithRetry(() => import('./FeedbackModal'));
 const AdmissionChecklistPage = lazyWithRetry(() => import('./AdmissionChecklistPage'));
+const AdmissionSummaryPage = lazyWithRetry(() => import('./AdmissionSummaryPage').then(m => ({ default: m.AdmissionSummaryPage })));
 const SyllabusExplorer = lazyWithRetry(() => import('./SyllabusExplorer'));
 const AdmissionsExplorer = lazyWithRetry(() => import('./AdmissionsExplorer'));
 const JambCapsLiveTrackerPage = lazyWithRetry(() => import('./JambCapsLiveTrackerPage'));
@@ -895,6 +896,10 @@ const AppContent: React.FC = () => {
       setCurrentPage('checklist');
       navigate('/admission-checklist');
       window.scrollTo(0, 0);
+    } else if (p === 'admission-summary' || p === 'admission-2026-summary' || p === 'admission-report' || p === 'reports') {
+      setCurrentPage('admission-summary');
+      navigate('/reports/nigeria-admission-year-in-review/2026-2027');
+      window.scrollTo(0, 0);
     } else if (p === 'cbt-locator' || p === 'cbt_locator' || p === 'locator') {
       setCurrentPage('cbt-locator');
       navigate('/cbt-locator');
@@ -1592,6 +1597,12 @@ const AppContent: React.FC = () => {
               <AdmissionChecklistPage />
             </>
           } />
+
+          <Route path="/reports/nigeria-admission-year-in-review/2026-2027" element={<AdmissionSummaryPage />} />
+          <Route path="/reports/nigeria-admission-year-in-review" element={<Navigate to="/reports/nigeria-admission-year-in-review/2026-2027" replace />} />
+          <Route path="/admission-2026-summary" element={<Navigate to="/reports/nigeria-admission-year-in-review/2026-2027" replace />} />
+          <Route path="/admission-summary" element={<Navigate to="/reports/nigeria-admission-year-in-review/2026-2027" replace />} />
+          <Route path="/admission-report" element={<Navigate to="/reports/nigeria-admission-year-in-review/2026-2027" replace />} />
 
           <Route path="/news" element={
             <NewsRouteResolver 

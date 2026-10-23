@@ -172,6 +172,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal, onOpenSupport,
                 { label: 'Syllabus Explorer', id: 'syllabus' },
                 { label: 'CBT Center Locator', id: 'cbt-locator' },
                 { label: 'Admission Checklist', id: 'checklist' },
+                { label: '2026 Admission Review & 2027 Forecast', id: 'admission-summary' },
                 { label: 'Official JAMB News', id: 'jamb' },
                 { label: 'Contact Us', id: 'contact' },
                 { label: 'Download App', id: 'download' }

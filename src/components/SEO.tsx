@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { stringify } from '../services/utils';
-import { getStoredLinkPreviews } from '../services/linkPreviewService';
+import { getStoredLinkPreviews, DEFAULT_LINK_PREVIEWS } from '../services/linkPreviewService';
 import { trackPageView } from '../services/analytics';
 import { cleanPlainText, truncateCleanPlainText, sanitizeUnicodeForJsonLd } from '../utils/seoSanitizer';
 
@@ -68,13 +68,24 @@ const SEO: React.FC<SEOProps> = ({
   const newsSlug = (canonical || cleanPath).includes('/news/') ? (canonical || cleanPath).split('/news/')[1] : "";
 
   const customPreviews = getStoredLinkPreviews();
-  const currentCustomPreview = customPreviews[cleanPath || '/']?.imageUrl || customPreviews[cleanPath]?.imageUrl;
+  const matchedStored = customPreviews[cleanPath || '/'] || customPreviews[cleanPath];
+  const matchedDefault = DEFAULT_LINK_PREVIEWS.find(p => p.path === (cleanPath || '/'));
+  const previewImg = matchedStored?.imageUrl || matchedDefault?.imageUrl || '';
 
-  let ogImage = `${siteDomain}/og-image.png`;
-  if (currentCustomPreview && (currentCustomPreview.startsWith('http') || currentCustomPreview.startsWith('data:'))) {
-    ogImage = currentCustomPreview;
-  } else if (image && typeof image === 'string' && (image.trim().startsWith('http://') || image.trim().startsWith('https://'))) {
-    ogImage = image.trim();
+  let ogImage = `${siteDomain}/assets/aistudio/20260926_064311_0000_ae959d53.png`;
+  if (previewImg) {
+    if (previewImg.startsWith('http') || previewImg.startsWith('data:')) {
+      ogImage = previewImg;
+    } else if (previewImg.startsWith('/')) {
+      ogImage = `${siteDomain}${previewImg}`;
+    }
+  } else if (image && typeof image === 'string') {
+    const trimmed = image.trim();
+    if (trimmed.startsWith('http') || trimmed.startsWith('data:')) {
+      ogImage = trimmed;
+    } else if (trimmed.startsWith('/')) {
+      ogImage = `${siteDomain}${trimmed}`;
+    }
   } else if (newsSlug) {
     ogImage = `${siteDomain}/api/article-image?slug=${encodeURIComponent(newsSlug.split('?')[0].replace(/\/$/, ''))}`;
   } else if (article) {

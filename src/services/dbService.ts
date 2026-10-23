@@ -499,7 +499,14 @@ export const getCloudNews = async (includeFuture: boolean = false, includeJunk: 
       );
 
       // Merge local posts, bookmarks, cloud news, and non-duplicate mock news
-      const mergedNews = lastCreatedAt ? cloudNews : [...localPublished, ...bookmarkedArticles, ...cloudNews, ...uniqueMockNews];
+      const filteredCloudNews = cloudNews.filter((c: any) => 
+        !localPublished.some((l: any) => 
+          l.id === c.id || 
+          (l.slug && c.slug && l.slug.toLowerCase() === c.slug.toLowerCase()) ||
+          (l.title && c.title && l.title.trim().toLowerCase() === c.title.trim().toLowerCase())
+        )
+      );
+      const mergedNews = lastCreatedAt ? cloudNews : [...localPublished, ...bookmarkedArticles, ...filteredCloudNews, ...uniqueMockNews];
 
       if (!lastCreatedAt) {
         cachedRawNews = mergedNews;
@@ -843,11 +850,15 @@ export const publishNewsUpdate = async (news: Omit<NewsItem, 'id'>) => {
     const current = getPublishedNews();
     const updated = [publishedItem, ...current.filter(n => n.id !== publishedId && n.slug !== slug)];
     localStorage.setItem(NEWS_KEY, stringify(updated));
+    localStorage.setItem('campusai_cached_news', stringify(updated.slice(0, 30)));
   } catch (e) {}
 
   clearNewsCache();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('campusai_news_updated'));
+    setTimeout(() => {
+      window.dispatchEvent(new Event('campusai_news_updated'));
+    }, 400);
   }
 
   // Trigger server-side IndexNow instant indexing for published article
