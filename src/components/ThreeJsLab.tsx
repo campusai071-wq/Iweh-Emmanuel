@@ -225,6 +225,8 @@ export const ThreeJsLab: React.FC<ThreeJsLabProps> = ({ onAskAI }) => {
           mesh.position.lerp(_scratchVec.current, 0.16);
         });
 
+
+
         // Project 3D Scientific Labels onto 2D viewport coordinates
         labelThrottle++;
         if (labelThrottle % 2 === 0 && showLabelsRef.current && currentPinsRef.current.length > 0) {
@@ -234,6 +236,18 @@ export const ThreeJsLab: React.FC<ThreeJsLabProps> = ({ onAskAI }) => {
 
           currentPinsRef.current.forEach(pin => {
             const v = pin.pos.clone();
+            
+            // Dynamically find closest exploded mesh to apply explosion displacement
+            const closest = ctx.explodedMeshes.reduce((prev, curr) => {
+              const d1 = prev.originalPos.distanceTo(pin.pos);
+              const d2 = curr.originalPos.distanceTo(pin.pos);
+              return d2 < d1 ? curr : prev;
+            }, ctx.explodedMeshes[0]);
+
+            if (closest) {
+              v.addScaledVector(closest.explodeDir, explodedAmountRef.current);
+            }
+
             // Account for group transformation
             v.applyMatrix4(ctx.currentGroup!.matrixWorld);
             v.project(camera);

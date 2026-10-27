@@ -731,6 +731,14 @@ const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         originalSource={news.sourceUrl || "https://jamb.gov.ng"}
       />
 
+      <button
+        onClick={handleShare}
+        className="fixed bottom-6 right-6 z-50 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all active:scale-95 shadow-blue-600/30"
+        title="Share Article"
+      >
+        <Share2 size={24} />
+      </button>
+
       <div className="max-w-4xl mx-auto px-6 md:px-0">
 
         {/* Structured Breadcrumbs */}

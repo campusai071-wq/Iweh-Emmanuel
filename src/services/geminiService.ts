@@ -2627,6 +2627,7 @@ CRITICAL RULES FOR ADMISSION ANALYSIS:
    - Tier 3: VERY STRONG (Score >= 6% above) -> "Very Strong / Excellent", Probability 80-98%.
    - Tier 4: BELOW CUTOFF (Score < Cutoff by >1.5%) -> "Low Probability", Probability < 35%.
 5. STRICT ZERO-HALLUCINATION & SCALE CONSISTENCY:
+    - STRICT SCALE SEPARATION: JAMB Raw Score (out of 400) and Aggregate Score (percentage out of 100) are distinct scales. If the official departmental cutoff is unavailable, use the candidate's calculated aggregate percentage. NEVER treat a raw JAMB score as a percentage or vice-versa (e.g., 180 JAMB is NOT 180%).
    - Uses Written Post-UTME Exam: ${usesPostUtme ? 'YES' : 'NO'}. If NO, you are STRICTLY FORBIDDEN from inventing or mentioning a written Post-UTME exam, dividing scores by 2, or claiming the candidate needs to sit or score in a Post-UTME exam. Explain that screening is purely based on JAMB and O-Level results.
    - Scale Consistency: Candidate Aggregate (${score}%) and Cutoff (${cutoffVal}%) are both on a 0-100% scale. DO NOT compare a percentage aggregate with raw 400-point JAMB scores.
    - The admission probability mentioned in '### 1. Verdict Summary' MUST be exactly ${deterministicEvaluation.probability}%. Do not contradict the calibrated model probability.

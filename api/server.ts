@@ -7599,7 +7599,7 @@ Help with JAMB UTME, WAEC, Post-UTME, course aggregate cut-offs, 3D STEM concept
 
     // Robust text generation with model fallback chain
     let responseText = "";
-    const candidateModels = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-2.5-flash-lite"];
+    const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
     
     for (const modelName of candidateModels) {
       try {
