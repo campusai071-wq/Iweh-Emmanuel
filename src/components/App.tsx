@@ -69,6 +69,9 @@ const AdvertisePage = lazyWithRetry(() => import('./AdvertisePage'));
 const PartnerNetworkPage = lazyWithRetry(() => import('./PartnerNetworkPage'));
 const CbtCenterLocator = lazyWithRetry(() => import('./CbtCenterLocator').then(m => ({ default: m.CbtCenterLocator })));
 const PdfStore = lazyWithRetry(() => import('./PdfStore').then(m => ({ default: m.PdfStore })));
+const LiveVoiceCoach = lazyWithRetry(() => import('./LiveVoiceCoach'));
+const ThreeJsLab = lazyWithRetry(() => import('./ThreeJsLab'));
+const BioscienceHub = lazyWithRetry(() => import('./BioscienceHub'));
 import { useDailyReminder } from '../hooks/useDailyReminder';
 import { useStandalone } from '../hooks/useStandalone';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
@@ -77,7 +80,7 @@ import { auth } from '../services/firebaseConfig';
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { initializeUserProfile, subscribeToUserProfile, isRealUser } from '../services/userService';
 import { AdminState, NewsItem, UserRole } from '../types';
-import { MessageSquare, X, Brain } from 'lucide-react';
+import { MessageSquare, X, Brain, Radio } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { slugify, triggerBrowserNotification } from '../services/utils';
 import { GoogleOneTapPrompt } from './GoogleOneTapPrompt';
@@ -261,6 +264,7 @@ const AppContent: React.FC = () => {
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isScholarPackOpen, setIsScholarPackOpen] = useState(false);
+  const [isVoiceCoachOpen, setIsVoiceCoachOpen] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<{ type: 'pack' | 'refill' | 'tool'; amount: number; label: string; toolId?: string } | undefined>(undefined);
   const [legalModal, setLegalModal] = useState<{ isOpen: boolean; type: 'terms' | 'privacy' | 'cookies' }>({ isOpen: false, type: 'terms' });
 
@@ -287,11 +291,14 @@ const AppContent: React.FC = () => {
       const saved = localStorage.getItem('campusai_show_important_banner');
       if (saved !== null) setShowImportantBanner(saved === 'true');
     };
+    const handleOpenVoice = () => setIsVoiceCoachOpen(true);
     window.addEventListener('storage', handleConfigChange);
     window.addEventListener('campusai_config_updated', handleConfigChange);
+    window.addEventListener('campusai_open_voice_coach', handleOpenVoice);
     return () => {
       window.removeEventListener('storage', handleConfigChange);
       window.removeEventListener('campusai_config_updated', handleConfigChange);
+      window.removeEventListener('campusai_open_voice_coach', handleOpenVoice);
     };
   }, []);
 
@@ -908,6 +915,16 @@ const AppContent: React.FC = () => {
       setCurrentPage('jamb-caps');
       navigate('/jamb-caps');
       window.scrollTo(0, 0);
+    } else if (p === 'voice-coach' || p === 'live-coach' || p === 'live-voice') {
+      setIsVoiceCoachOpen(true);
+    } else if (p === '3d-lab' || p === '3d-stem' || p === 'threejs-lab') {
+      setCurrentPage('3d-lab');
+      navigate('/3d-lab');
+      window.scrollTo(0, 0);
+    } else if (p === 'bioscience-hub' || p === 'science-hub' || p === 'bioscience') {
+      setCurrentPage('bioscience-hub');
+      navigate('/bioscience-hub');
+      window.scrollTo(0, 0);
     } else if (p === 'news') {
       setCurrentPage('news');
       navigate('/news');
@@ -1160,6 +1177,39 @@ const AppContent: React.FC = () => {
                 onSignUpRequest={() => { setAuthModalMode('signup'); setIsAuthModalOpen(true); }}
                 initialTab="ai-advisor"
               />
+            </div>
+          } />
+
+          <Route path="/voice-coach" element={
+            <div className="pt-4 sm:pt-6 md:pt-8 min-h-screen bg-gray-950 flex items-center justify-center p-4">
+              <SEO 
+                title="Live Voice Coach | Gemini 3.8 Real-Time Audio Tutoring" 
+                description="Speak directly with CampusAI's Live Voice Academic Coach powered by Gemini 3.8 Live API. Low-latency spoken audio coaching for JAMB and Post-UTME."
+                canonical="/voice-coach"
+              />
+              <LiveVoiceCoach isOpen={true} user={user} />
+            </div>
+          } />
+
+          <Route path="/3d-lab" element={
+            <div className="min-h-screen bg-gray-950">
+              <SEO 
+                title="CampusAI 3D STEM Lab | Interactive Procedural 3D Learning" 
+                description="Interactive 3D laboratory with Three.js: inspect DNA double helix base pairs, 4-chamber human heart anatomy, and UV-Vis spectrophotometers with PBR studio realism."
+                canonical="/3d-lab"
+              />
+              <ThreeJsLab onAskAI={(topic: string) => window.dispatchEvent(new CustomEvent('campusai_open_ai', { detail: topic }))} />
+            </div>
+          } />
+
+          <Route path="/bioscience-hub" element={
+            <div className="min-h-screen bg-slate-50">
+              <SEO 
+                title="CampusAI Bioscience Hub & Molecular Explorer | DeepMind AlphaFold & Genomics" 
+                description="Explore 3D AlphaFold protein structures with canonical pLDDT confidence scores, UniProt annotations, and biomedical literature search for sickle cell and Nigerian medical research."
+                canonical="/bioscience-hub"
+              />
+              <BioscienceHub onAskAI={(prompt: string) => window.dispatchEvent(new CustomEvent('campusai_open_ai', { detail: prompt }))} />
             </div>
           } />
           
@@ -1526,19 +1576,27 @@ const AppContent: React.FC = () => {
                   </Suspense>
 
                   {/* POLICIES SECTION */}
-                  <PolicySection />
+                  <Suspense fallback={<div className="py-12 text-center text-gray-400">Loading Policies...</div>}>
+                    <PolicySection />
+                  </Suspense>
 
                   {/* TESTIMONIALS SECTION */}
-                  <Testimonials />
+                  <Suspense fallback={<div className="py-12 text-center text-gray-400">Loading Testimonials...</div>}>
+                    <Testimonials />
+                  </Suspense>
 
                   {/* FAQ SECTION */}
-                  <FAQSection />
+                  <Suspense fallback={<div className="py-12 text-center text-gray-400">Loading FAQ...</div>}>
+                    <FAQSection />
+                  </Suspense>
                 </>
               )}
 
               {currentPage === 'about' && (
                 <div className="pt-4 sm:pt-6 md:pt-8">
-                  <AboutSection />
+                  <Suspense fallback={<div className="py-12 text-center text-gray-400">Loading About...</div>}>
+                    <AboutSection />
+                  </Suspense>
                 </div>
               )}
 
@@ -1763,26 +1821,53 @@ const AppContent: React.FC = () => {
         <ScholarPackModal isOpen={isScholarPackOpen} onClose={() => setIsScholarPackOpen(false)} user={user} paymentConfig={paymentConfig} />
         <LegalModal isOpen={legalModal.isOpen} type={legalModal.type} onClose={() => setLegalModal({ ...legalModal, isOpen: false })} />
         <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} user={user} />
-        {/* Floating Ask AI Button (Navigates directly to /chat page) */}
-        {!isAdminPage && currentPage !== 'chat' && (
-          <div className="fixed bottom-20 left-3.5 md:left-8 md:bottom-8 z-[150] group">
+        {/* Floating Ask AI & Live Voice Buttons */}
+        {!isAdminPage && (
+          <div className="fixed bottom-20 left-3.5 md:left-8 md:bottom-8 z-[150] flex flex-col space-y-2.5">
+            {/* Live Voice Coach Call Button */}
             <button
-              id="campusai-floating-chat-bubble"
-              onClick={() => {
-                setCurrentPage('chat');
-                navigate('/chat');
-                window.scrollTo(0, 0);
-              }}
-              className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white p-3 md:p-4 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer border border-blue-500/20"
-              title="Consult AI Admissions Advisor"
+              onClick={() => setIsVoiceCoachOpen(true)}
+              className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white p-3 md:p-3.5 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-400/30 group"
+              title="Launch Live Voice Coach (Gemini Live)"
             >
-              <Brain size={20} className="md:w-6 md:h-6 group-hover:rotate-12 transition-transform duration-300" />
-              <span className="max-w-0 overflow-hidden group-hover:max-w-xs group-hover:ml-2 font-black uppercase text-[10px] tracking-widest transition-all duration-300 whitespace-nowrap">
-                Ask AI
+              <Radio size={20} className="md:w-5 md:h-5 text-white" />
+              <span className="max-w-0 overflow-hidden group-hover:max-w-xs group-hover:ml-2 font-bold uppercase text-[10px] tracking-wider transition-all duration-300 whitespace-nowrap">
+                Live Voice
               </span>
             </button>
+
+            {/* Consult Text AI Advisor */}
+            {currentPage !== 'chat' && (
+              <button
+                id="campusai-floating-chat-bubble"
+                onClick={() => {
+                  setCurrentPage('chat');
+                  navigate('/chat');
+                  window.scrollTo(0, 0);
+                }}
+                className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white p-3 md:p-3.5 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer border border-blue-500/20 group"
+                title="Consult AI Admissions Advisor"
+              >
+                <Brain size={20} className="md:w-5 md:h-5 group-hover:rotate-12 transition-transform duration-300" />
+                <span className="max-w-0 overflow-hidden group-hover:max-w-xs group-hover:ml-2 font-black uppercase text-[10px] tracking-widest transition-all duration-300 whitespace-nowrap">
+                  Ask AI
+                </span>
+              </button>
+            )}
           </div>
         )}
+
+        {/* Global Live Voice Coach (Background-capable with page awareness) */}
+        <LiveVoiceCoach
+          isOpen={isVoiceCoachOpen}
+          onClose={() => setIsVoiceCoachOpen(false)}
+          user={user}
+          pageContext={{
+            path: location.pathname,
+            title: document.title || 'CampusAI Nigeria',
+            details: `Active page: ${currentPage}, Path: ${location.pathname}`
+          }}
+        />
         {/* Contextual Academic & Campus News Rail across all pages */}
         <ContextualNewsRail onReadArticle={openArticle} />
 

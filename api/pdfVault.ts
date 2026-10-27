@@ -16,7 +16,18 @@ try {
 const memoryCache = new Map<string, { meta: any; buffer: Buffer }>();
 
 // Known official source documents with authentic downloads
-export const OFFICIAL_PRESET_METADATA: Record<string, any> = {};
+export const OFFICIAL_PRESET_METADATA: Record<string, any> = {
+  "strategic-roadmap-inclusive-education-2024-2028": {
+    id: "strategic-roadmap-inclusive-education-2024-2028",
+    title: "Strategic Roadmap for Inclusive Access to Quality Higher Education in Nigeria (2024-2028)",
+    category: "Federal Ministry of Education / JAMB",
+    author: "JEOG / Prof. Peter Okebukola / Prof. Is-haq Oloyede",
+    institution: "Federal Ministry of Education",
+    fileSize: "2.45 MB",
+    downloadUrl: "/assets/aistudio/FINAL-2024-2028_Strategic_Roadmap_for_Inclusive_Access_to_Quality_Higher_Education-Oct_2024updated_e7b220a8.pdf",
+    description: "Official 9-goal strategic roadmap for inclusive education in Nigerian higher institutions, covering special needs quotas, trimodal UTME systems, and implementation strategies."
+  }
+};
 
 // Load metadata from disk on boot
 function loadMetadata(): Record<string, any> {

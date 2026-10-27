@@ -112,6 +112,7 @@ export const getNewsItemBySlug = async (slug: string): Promise<NewsItem | null> 
       date: new Date().toISOString(),
       views: 12,
       shares: 0,
+      image: "/assets/aistudio/Ui_20260926_172848_0000_dafc826e.png",
       isLive: true
     };
   }
@@ -174,6 +175,7 @@ export const getNewsItemBySlug = async (slug: string): Promise<NewsItem | null> 
     date: new Date().toISOString(),
     views: 12,
     shares: 0,
+    image: "/assets/aistudio/Ui_20260926_172848_0000_dafc826e.png",
     isLive: true
   };
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, School, Building2, Brain, Newspaper, Info, Settings, Menu, X, ShieldCheck, LogIn, ChevronDown, Share2, Moon, Sun, User, ShieldAlert, Zap, Gift, Search, Loader2, FileCheck, BookOpen, GraduationCap, Calculator, Landmark, Crown, BarChart3, Activity, UserPlus, Sparkles, MapPin, ExternalLink, Globe, ArrowRight, MessageSquare } from 'lucide-react';
+import { Home, School, Building2, Brain, Newspaper, Info, Settings, Menu, X, ShieldCheck, LogIn, ChevronDown, Share2, Moon, Sun, User, ShieldAlert, Zap, Gift, Search, Loader2, FileCheck, BookOpen, GraduationCap, Calculator, Landmark, Crown, BarChart3, Activity, UserPlus, Sparkles, MapPin, ExternalLink, Globe, ArrowRight, MessageSquare, Radio, Dna } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAsuuStrikeStatus } from '../services/geminiService';
 import { searchUnified, searchInternalCampusAI, SearchResultItem } from '../services/searchService';
@@ -255,6 +255,9 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, user, admin, s
   ];
 
   const moreNavItems = [
+    { name: 'Live Voice Coach', icon: <Radio size={16} />, id: 'voice-coach' },
+    { name: '3D STEM Lab', icon: <Sparkles size={16} />, id: '3d-lab' },
+    { name: 'Bioscience Hub', icon: <Dna size={16} />, id: 'bioscience-hub' },
     { name: 'About Us', icon: <Info size={16} />, id: 'about' },
     { name: 'Advertise With Us', icon: <Sparkles size={16} />, id: 'advertise' },
     { name: 'Partner Network', icon: <ShieldCheck size={16} />, id: 'partners' },
@@ -271,6 +274,9 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, user, admin, s
 
   const allNavItems = [
     { name: 'Home', icon: <Home size={18} />, id: 'home' },
+    { name: 'Live Voice Coach', icon: <Radio size={18} />, id: 'voice-coach' },
+    { name: '3D STEM Lab', icon: <Sparkles size={18} />, id: '3d-lab' },
+    { name: 'Bioscience Hub', icon: <Dna size={18} />, id: 'bioscience-hub' },
     { name: 'About Us', icon: <Info size={18} />, id: 'about' },
     { name: 'Advertise With Us', icon: <Sparkles size={18} />, id: 'advertise' },
     { name: 'Partner Network', icon: <ShieldCheck size={18} />, id: 'partners' },

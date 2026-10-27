@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calculator, BookOpen, Newspaper, GraduationCap, FileText, CheckSquare, Search, Award, Image as ImageIcon, MapPin, Users, MessageSquare, Sparkles, ShieldCheck } from 'lucide-react';
+import { Calculator, BookOpen, Newspaper, GraduationCap, FileText, CheckSquare, Search, Award, Image as ImageIcon, MapPin, Users, MessageSquare, Sparkles, ShieldCheck, Radio, Dna } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getStoredLinkPreviews, fetchLinkPreviewsFromCloud, LinkPreviewMap } from '../services/linkPreviewService';
 
@@ -84,6 +84,9 @@ const ToolsGrid: React.FC = () => {
   }, []);
 
   const tools = [
+    { title: "Live Voice Academic Coach", subtitle: "Gemini 3.8 Live Audio Call", icon: Radio, path: "/voice-coach" },
+    { title: "3D STEM & Science Lab", subtitle: "Procedural PBR 3D Models", icon: Sparkles, path: "/3d-lab" },
+    { title: "Bioscience Hub & Explorer", subtitle: "AlphaFold & Clinical Genetics", icon: Dna, path: "/bioscience-hub" },
     { title: "JAMB CBT Simulator", subtitle: "Live Mock Exams & AI", icon: Award, path: "/cbt-simulator" },
     { title: "Verified Partner Network", subtitle: "Accredited CBT & Tutorial Centers", icon: ShieldCheck, path: "/partners" },
     { title: "Advertise With CampusAI", subtitle: "Reach 500k+ Active Nigerian Scholars", icon: Sparkles, path: "/advertise" },

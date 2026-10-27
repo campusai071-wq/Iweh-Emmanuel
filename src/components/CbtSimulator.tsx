@@ -81,7 +81,9 @@ import {
   Play,
   ShieldCheck,
   History,
-  X
+  X,
+  Radio,
+  Dna
 } from 'lucide-react';
 
 import institutionsTree from '../data/institutionsTree.json';
@@ -1429,13 +1431,27 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
 
   const totalQuestions = allQuestionsFlat.length;
 
+  const isAnswerCorrect = (q: Question, userAnsKey?: string): boolean => {
+    if (!userAnsKey) return false;
+    const effectiveKey = (explanations[q.id]?.verifiedAnswer || q.answer || '').trim().toLowerCase();
+    const uKey = userAnsKey.trim().toLowerCase();
+    if (uKey === effectiveKey) return true;
+    
+    // Check if option texts match (handles duplicate options like privilege)
+    if (q.option && typeof q.option === 'object') {
+      const uText = (q.option as any)[uKey]?.trim().toLowerCase();
+      const cText = (q.option as any)[effectiveKey]?.trim().toLowerCase();
+      if (uText && cText && uText === cText) return true;
+    }
+    return false;
+  };
+
   const calculateScore = (subjectKey?: string) => {
     const pool = subjectKey ? questionsBySubject[subjectKey] || [] : allQuestionsFlat;
     const answers = subjectKey ? answersBySubject[subjectKey] || {} : Object.assign({}, ...Object.values(answersBySubject));
     let score = 0;
     pool.forEach((q) => {
-      const correctKey = (explanations[q.id]?.verifiedAnswer || q.answer || '').trim().toLowerCase();
-      if (answers[q.id]?.trim().toLowerCase() === correctKey) score++;
+      if (isAnswerCorrect(q, answers[q.id])) score++;
     });
     return score;
   };
@@ -1521,7 +1537,7 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
         const answers = answersBySubject[subKey] || {};
         let subScore = 0;
         pool.forEach((q) => {
-          if (answers[q.id]?.toLowerCase() === q.answer.toLowerCase()) subScore++;
+          if (isAnswerCorrect(q, answers[q.id])) subScore++;
         });
         // JAMB Psychometric Scaling: (Raw / Total) * 100
         const scaledScore = pool.length > 0 ? (subScore / pool.length) * 100 : 0;
@@ -1572,20 +1588,20 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
     const subjectBreakdown = selectedSubjects.map((subKey) => {
       const qs = questionsBySubject[subKey] || [];
       const ans = answersBySubject[subKey] || {};
-      const subScore = qs.filter((q) => ans[q.id]?.toLowerCase() === q.answer.toLowerCase()).length;
+      const subScore = qs.filter((q) => isAnswerCorrect(q, ans[q.id])).length;
       const subLabel = SUBJECT_OPTIONS.find((s) => s.key === subKey)?.label || subKey;
 
       const wrongQuestions = qs
-        .filter((q) => ans[q.id] && ans[q.id]?.toLowerCase() !== q.answer.toLowerCase())
+        .filter((q) => ans[q.id] && !isAnswerCorrect(q, ans[q.id]))
         .map((q) => ({
           question: q.question.replace(/<[^>]*>?/gm, '').slice(0, 100),
           userAnswer: ans[q.id],
-          correctAnswer: q.answer,
+          correctAnswer: explanations[q.id]?.verifiedAnswer || q.answer,
           topic: q.metadata?.topic || 'General'
         }));
 
       const correctQuestions = qs
-        .filter((q) => ans[q.id]?.toLowerCase() === q.answer.toLowerCase())
+        .filter((q) => isAnswerCorrect(q, ans[q.id]))
         .map((q) => ({
           question: q.question.replace(/<[^>]*>?/gm, '').slice(0, 100),
           topic: q.metadata?.topic || 'General'
@@ -1615,7 +1631,7 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
             topicMap[key] = { subjectKey: subKey, topic: topicName, attempted: 0, correct: 0, incorrect: 0 };
           }
           topicMap[key].attempted += 1;
-          const isCorrect = userAns.toLowerCase() === q.answer.toLowerCase();
+          const isCorrect = isAnswerCorrect(q, userAns);
           if (isCorrect) {
             topicMap[key].correct += 1;
           } else {
@@ -1966,7 +1982,8 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
   };
 
   // Load questions for topic-by-topic study mode
-  const fetchTopicStudyQuestions = async () => {
+  const fetchTopicStudyQuestions = async (targetSubjectOverride?: string) => {
+    const subToFetch = targetSubjectOverride || studySubject;
     setLoadingStudy(true);
     try {
       const reqTimestamp = Date.now();
@@ -1975,7 +1992,7 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subject: studySubject,
+          subject: subToFetch,
           limit: 15,
           fresh: true,
           timestamp: reqTimestamp,
@@ -1990,20 +2007,20 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
       if (data.success && data.data) {
         const tagged = (data.data as Question[]).map(q => {
           if (q && q.id) sessionSeenQuestionIdsRef.current.add(String(q.id));
-          const isRealPassage = isLegitimateReadingPassage(q.section, studySubject);
+          const isRealPassage = isLegitimateReadingPassage(q.section, subToFetch);
           if (!isRealPassage && q.section) {
             const solutionText = q.solution && !q.solution.toLowerCase().includes('official')
               ? `${q.solution}\n\n${q.section}`
               : q.section;
             return {
               ...q,
-              __subject: studySubject,
+              __subject: subToFetch,
               section: null,
               hasPassage: false,
               solution: solutionText
             };
           }
-          return { ...q, __subject: studySubject };
+          return { ...q, __subject: subToFetch };
         });
         setStudyQuestions(tagged);
         setStudyAnswers({});
@@ -4466,6 +4483,28 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                   <MessageSquare size={14} />
                   Discussion Hub
                 </button>
+                <a
+                  href="/3d-lab"
+                  className="px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-bold text-xs"
+                >
+                  <Sparkles size={13} className="text-indigo-600" />
+                  3D STEM Lab
+                </a>
+                <a
+                  href="/bioscience-hub"
+                  className="px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 font-bold text-xs"
+                >
+                  <Dna size={13} className="text-cyan-600" />
+                  Bioscience Hub
+                </a>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event('campusai_open_voice_coach'))}
+                  className="px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200 border border-emerald-300 font-black text-xs shadow-xs"
+                >
+                  <Radio size={13} className="text-emerald-700 animate-pulse" />
+                  Live Voice Coach
+                </button>
               </div>
             </div>
 
@@ -4480,6 +4519,8 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                         onClick={() => {
                           setStudySubject(sub.key);
                           setStudyTopic(sub.topics[0] || 'General');
+                          setStudyQuestions([]);
+                          fetchTopicStudyQuestions(sub.key);
                         }}
                         className={`w-full p-3 rounded-2xl text-left text-xs font-bold transition-all flex justify-between items-center ${
                           studySubject === sub.key ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
@@ -4499,7 +4540,7 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                         {SUBJECT_OPTIONS.find((s) => s.key === studySubject)?.label} Past Questions
                       </h3>
                       <button
-                        onClick={fetchTopicStudyQuestions}
+                        onClick={() => fetchTopicStudyQuestions()}
                         disabled={loadingStudy}
                         className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs rounded-xl border border-emerald-200 flex items-center gap-1.5"
                       >
@@ -4517,7 +4558,19 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                         {studyQuestions.map((q, idx) => {
                           const userAns = studyAnswers[q.id];
                           const isAnswered = !!userAns;
-                          const isCorrect = userAns?.toLowerCase() === q.answer.toLowerCase();
+                          const isAnswerCorrectFn = (item: Question, ansKey?: string) => {
+                            if (!ansKey) return false;
+                            const effKey = (explanations[item.id]?.verifiedAnswer || item.answer || '').trim().toLowerCase();
+                            const uK = ansKey.trim().toLowerCase();
+                            if (uK === effKey) return true;
+                            if (item.option && typeof item.option === 'object') {
+                              const uT = (item.option as any)[uK]?.trim().toLowerCase();
+                              const cT = (item.option as any)[effKey]?.trim().toLowerCase();
+                              if (uT && cT && uT === cT) return true;
+                            }
+                            return false;
+                          };
+                          const isCorrect = isAnswerCorrectFn(q, userAns);
 
                           return (
                             <div key={q.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
