@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -34,6 +35,7 @@ interface ThreeJsLabProps {
 }
 
 export const ThreeJsLab: React.FC<ThreeJsLabProps> = ({ onAskAI }) => {
+  const navigate = useNavigate();
   const mountRef = useRef<HTMLDivElement>(null);
   const [selectedModel, setSelectedModel] = useState<StemModelType>('dna');
   const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
@@ -1118,6 +1120,21 @@ export const ThreeJsLab: React.FC<ThreeJsLabProps> = ({ onAskAI }) => {
           </div>
         </div>
         <p className="text-xs text-gray-300 leading-relaxed border-t border-gray-800/80 pt-2">{activeLayerInfo}</p>
+        <div className="flex items-center space-x-2 pt-2 border-t border-gray-800/60 text-[11px]">
+          <button
+            onClick={() => navigate('/cbt-simulator')}
+            className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center space-x-1 transition"
+          >
+            <span>Practice in CBT Simulator &rarr;</span>
+          </button>
+          <span className="text-gray-600">•</span>
+          <button
+            onClick={() => navigate('/calculator')}
+            className="text-cyan-400 hover:text-cyan-300 font-medium transition"
+          >
+            <span>Cut-offs</span>
+          </button>
+        </div>
       </div>
 
       {/* Top Right Quick Actions */}

@@ -3455,6 +3455,74 @@ export default function CbtSimulator({ user, setIsScholarPackOpen, setPaymentCon
                   </div>
                 </div>
 
+                {/* Connected Academic Pathways & Interconnected Guidance */}
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-7 text-white border border-indigo-500/30 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-indigo-500/20 pb-4">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                        Recommended Next Steps in Your Study Journey
+                      </span>
+                      <h3 className="text-base sm:text-lg font-bold text-white mt-1">
+                        Connect Your Test Performance with CampusAI Tools
+                      </h3>
+                    </div>
+                    <span className="text-xs text-indigo-300">Targeting 2026/2027 Admissions</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                    {/* 1. Aggregate Calculator */}
+                    <div 
+                      onClick={() => navigate('/calculator')}
+                      className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-400/50 transition cursor-pointer group"
+                    >
+                      <div className="flex items-center space-x-2 text-emerald-400 mb-1.5">
+                        <Calculator size={18} />
+                        <h4 className="font-bold text-xs text-white group-hover:text-emerald-300 transition">University Cut-off Chances</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Calculate how this mock performance translates into UNILAG, UI, OAU, or UNIBEN aggregate scores.
+                      </p>
+                      <span className="text-[10px] text-emerald-400 font-bold mt-2.5 inline-block group-hover:translate-x-1 transition">
+                        Calculate Aggregate &rarr;
+                      </span>
+                    </div>
+
+                    {/* 2. 3D STEM Lab */}
+                    <div 
+                      onClick={() => navigate('/3d-lab')}
+                      className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-400/50 transition cursor-pointer group"
+                    >
+                      <div className="flex items-center space-x-2 text-cyan-400 mb-1.5">
+                        <Sparkles size={18} />
+                        <h4 className="font-bold text-xs text-white group-hover:text-cyan-300 transition">3D Visual Science Lab</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Dissect interactive 3D apparatus, heart anatomy, plant cells, and AC generators to master theoretical weak points.
+                      </p>
+                      <span className="text-[10px] text-cyan-400 font-bold mt-2.5 inline-block group-hover:translate-x-1 transition">
+                        Explore 3D Models &rarr;
+                      </span>
+                    </div>
+
+                    {/* 3. Syllabus Explorer */}
+                    <div 
+                      onClick={() => navigate('/syllabus-explorer')}
+                      className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/50 transition cursor-pointer group"
+                    >
+                      <div className="flex items-center space-x-2 text-amber-400 mb-1.5">
+                        <BookOpen size={18} />
+                        <h4 className="font-bold text-xs text-white group-hover:text-amber-300 transition">JAMB Syllabus & Texts</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Review official JAMB course requirements, compulsory textbooks, and subject combination guides.
+                      </p>
+                      <span className="text-[10px] text-amber-400 font-bold mt-2.5 inline-block group-hover:translate-x-1 transition">
+                        Check Syllabus &rarr;
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Detailed Answer Review */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-4">
