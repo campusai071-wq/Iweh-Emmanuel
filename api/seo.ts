@@ -426,14 +426,24 @@ async function generateInjectedSEO(html: string, reqPath: string, adminDb: any, 
           title = `${articleTitle} | CampusAI News`;
           description = formatSeoDescription(articleExcerpt, articleTitle);
 
-          let version = Date.now();
-          if (docData.updatedAt) {
-            if (typeof docData.updatedAt.toMillis === 'function') version = docData.updatedAt.toMillis();
-            else if (typeof docData.updatedAt.toDate === 'function') version = docData.updatedAt.toDate().getTime();
+          let version = 1;
+          const dateToUse = docData.updatedAt || docData.createdAt || docData.date;
+          if (dateToUse) {
+            if (typeof dateToUse.toMillis === 'function') version = dateToUse.toMillis();
+            else if (typeof dateToUse.toDate === 'function') version = dateToUse.toDate().getTime();
             else {
-              const parsed = new Date(docData.updatedAt).getTime();
+              const parsed = new Date(dateToUse).getTime();
               if (!isNaN(parsed) && parsed > 0) version = parsed;
             }
+          } else {
+            // Use a hash of the slug as a stable fallback version if no dates are available
+            let hash = 0;
+            const s = slug || 'default';
+            for (let i = 0; i < s.length; i++) {
+              hash = ((hash << 5) - hash) + s.charCodeAt(i);
+              hash |= 0;
+            }
+            version = Math.abs(hash);
           }
 
           // Dedicated high-performance OpenGraph link preview image endpoint for WhatsApp, Facebook, Twitter, and LinkedIn

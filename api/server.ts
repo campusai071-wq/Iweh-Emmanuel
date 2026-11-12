@@ -6606,7 +6606,7 @@ app.get(["/sitemap.xml", "/api/sitemap.xml"], async (req: any, res: any) => {
     if (cachedGeneralSitemapXml && (now - cachedGeneralSitemapXml.timestamp < SITEMAP_CACHE_TTL_MS)) {
       res.header('Content-Type', 'application/xml; charset=utf-8');
       res.header('X-Robots-Tag', 'all');
-      res.header('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
+      res.header('Cache-Control', 'public, max-age=3600, s-maxage=604800, stale-while-revalidate=604800');
       return res.send(cachedGeneralSitemapXml.xml);
     }
 
@@ -7864,7 +7864,7 @@ async function startServer() {
         let html = fs.readFileSync(indexPath, 'utf-8');
         html = await injectSEO(html, req.path);
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400');
+        res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=86400, stale-while-revalidate=604800');
         res.send(html);
       } catch (err) {
         console.error("[Server HTML Error]", err);
